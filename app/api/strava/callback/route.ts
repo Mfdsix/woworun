@@ -80,5 +80,5 @@ export async function GET(request: Request): Promise<NextResponse> {
     return redirectAndClearNonce("/connect?error=exchange_failed");
   }
 
-  return redirectAndClearNonce("/");
+  return redirectAndClearNonce("/strava");
 }

@@ -47,7 +47,7 @@ export default async function LocalPage() {
         athleteName="Individu Bugar - PI"
         computedAt={now}
         stale={false}
-        showActions={false}
+        actions="none"
         statusLabel={
           <>
             Local JSON · {status.walks} walks · {status.points} pts

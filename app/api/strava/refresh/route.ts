@@ -21,19 +21,19 @@ export async function POST(): Promise<NextResponse> {
 
   const cooldown = await consumeRateLimit(`sync:manual:${userId}`, 1, COOLDOWN_MS);
   if (!cooldown.allowed) {
-    return redirectTo("/?sync=wait");
+    return redirectTo("/strava?sync=wait");
   }
 
   try {
     await getDashboard(userId, { force: true });
-    return redirectTo("/?sync=ok");
+    return redirectTo("/strava?sync=ok");
   } catch (error) {
     if (error instanceof NeedsReauthError) {
-      return redirectTo("/?sync=reauth");
+      return redirectTo("/strava?sync=reauth");
     }
     if (error instanceof StravaRateLimitedError) {
-      return redirectTo("/?sync=rate_limited");
+      return redirectTo("/strava?sync=rate_limited");
     }
-    return redirectTo("/?sync=failed");
+    return redirectTo("/strava?sync=failed");
   }
 }

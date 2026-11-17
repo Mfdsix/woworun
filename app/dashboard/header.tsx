@@ -5,7 +5,7 @@ type DashboardHeaderProps = {
   athleteName: string;
   computedAt: Date;
   stale: boolean;
-  showActions?: boolean;
+  actions?: "strava" | "lock" | "none";
   statusLabel?: ReactNode;
 };
 
@@ -13,7 +13,7 @@ export function DashboardHeader({
   athleteName,
   computedAt,
   stale,
-  showActions = true,
+  actions = "strava",
   statusLabel,
 }: DashboardHeaderProps) {
   return (
@@ -31,7 +31,7 @@ export function DashboardHeader({
             </>
           )}
         </span>
-        {showActions && (
+        {actions === "strava" && (
           <>
             <form action="/api/strava/refresh" method="post">
               <button className="btn btn-sm btn-ghost" type="submit">
@@ -47,6 +47,13 @@ export function DashboardHeader({
               Settings
             </a>
           </>
+        )}
+        {actions === "lock" && (
+          <form action="/api/auth/logout" method="post">
+            <button className="btn btn-sm" type="submit">
+              Lock
+            </button>
+          </form>
         )}
       </div>
     </header>

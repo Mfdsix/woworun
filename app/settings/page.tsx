@@ -24,7 +24,7 @@ export default async function SettingsPage() {
       <div className="settings">
         <div className="settings-head">
           <p className="brand">Walk Log</p>
-          <Link className="btn btn-sm btn-ghost" href="/">
+          <Link className="btn btn-sm btn-ghost" href="/strava">
             Back to dashboard
           </Link>
         </div>

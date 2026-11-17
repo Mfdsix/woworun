@@ -14,8 +14,8 @@ A small, calm dashboard for your Strava walks. PIN-gated, multi-user (up to 10),
 
 ## Two modes
 
-- **Manual (default, no setup)** — `/` opens the manual dashboard. Tap the `+` button, paste rows from the activity table, and they are saved in this browser's `localStorage`. Duplicate rows are skipped using `start time + duration + distance`. No database, PIN, or Strava API app required.
-- **Strava sync (optional)** — `/strava` keeps the PIN + OAuth dashboard. It requires the database and Strava API app setup described below.
+- **Manual (default)** — after PIN unlock, `/` shows the manual dashboard. Entries are saved in `localStorage`, namespaced by user id. It needs the database for PIN auth, but no Strava API app.
+- **Strava sync (optional)** — `/strava` keeps the PIN + OAuth dashboard. It requires the database and the Strava API app setup described below.
 
 `/manual` is an alias of the manual view. `/local` renders `data/pi-activities.json` in development only.
 
@@ -30,7 +30,7 @@ npm install
 npm run dev
 ```
 
-For the default manual mode that is all you need. Steps 2–4 are only required for the optional `/strava` dashboard.
+For the default manual mode you still need a database (step 2) because `/` is PIN-gated. Steps 3–4 are only for the optional `/strava` dashboard.
 
 ## 2. Create a database
 
@@ -81,6 +81,14 @@ Open <http://localhost:3000>. Enter any 6-character PIN, confirm, then connect S
 ## 5. Deploy
 
 Vercel + Neon (or any Postgres). Add all env vars from `.env.example`, set `APP_URL` to the production origin, and update the Strava callback domain to match.
+
+## PWA
+
+- Install via the browser's **Add to Home Screen**. The manifest is `/manifest.webmanifest`; icons live in `public/icons/` plus `public/apple-touch-icon.png`.
+- `public/sw.js` caches the app shell and static assets, and serves `/offline` when a navigation fails. The manual dashboard works offline because its data is in `localStorage`.
+- Service worker registration runs only in production builds; `npm run dev` never registers one.
+- When a new worker is waiting, the app shows an **Update available · Reload** banner. Bump `VERSION` in `public/sw.js` when the caching strategy changes.
+- Manual data is per browser, per device, and now per PIN user id.
 
 ## Docker (app + Postgres)
 

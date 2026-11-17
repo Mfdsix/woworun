@@ -21,7 +21,7 @@ export default async function ConnectPage({ searchParams }: ConnectPageProps) {
   if (!userId) redirect("/unlock");
 
   const connection = await getConnection(userId);
-  if (connection && connection.status === "active") redirect("/");
+  if (connection && connection.status === "active") redirect("/strava");
 
   const params = await searchParams;
   const message = params.error

@@ -60,7 +60,7 @@ function skippedLabel(rejected: number, otherSport: number, invalid: number): st
     .join(" · ");
 }
 
-export function ManualView() {
+export function ManualView({ userId }: { userId: string }) {
   const [items, setItems] = useState<StoredActivity[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -71,11 +71,30 @@ export function ManualView() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const stored = parseStored(window.localStorage.getItem(STORAGE_KEY));
+    let stored: StoredActivity[] = [];
+
+    try {
+      const key = `${STORAGE_KEY}:${userId}`;
+      let raw = window.localStorage.getItem(key);
+
+      if (!raw) {
+        const legacy = window.localStorage.getItem(STORAGE_KEY);
+        if (legacy) {
+          window.localStorage.setItem(key, legacy);
+          window.localStorage.removeItem(STORAGE_KEY);
+          raw = legacy;
+        }
+      }
+
+      stored = parseStored(raw);
+    } catch {
+      stored = [];
+    }
+
     setItems(stored);
     setNow(new Date());
     setLoaded(true);
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (!open) return;
@@ -114,7 +133,7 @@ export function ManualView() {
   function persist(next: StoredActivity[]) {
     setItems(next);
     try {
-      window.localStorage.setItem(STORAGE_KEY, serializeStored(next));
+      window.localStorage.setItem(`${STORAGE_KEY}:${userId}`, serializeStored(next));
     } catch {
       setNotice("Could not save to this browser. The dashboard still works for this session.");
     }
@@ -189,7 +208,7 @@ export function ManualView() {
         athleteName="Local activities"
         computedAt={now}
         stale={false}
-        showActions={false}
+        actions="lock"
         statusLabel={
           <>
             {items.length} walks · {points} pts · saved locally
@@ -248,7 +267,12 @@ export function ManualView() {
           </div>
 
           <footer className="dash-footer">
-            <span>Manual · saved in this browser</span>
+            <span>
+              Manual · saved in this browser ·{" "}
+              <a className="footer-link" href="/strava">
+                Strava
+              </a>
+            </span>
             <span>
               {data.last7.walkCount} walks in the last 7 days ·{" "}
               <button className="footer-link" type="button" onClick={clearAll}>
