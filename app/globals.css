@@ -891,3 +891,148 @@ input {
 .btn-danger:hover {
   background: #ef5f5f;
 }
+
+/* ---------- Manual paste ---------- */
+
+.paste-card {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.paste-input {
+  width: 100%;
+  min-height: 240px;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.paste-input:focus {
+  outline: 2px solid rgba(252, 82, 0, 0.45);
+  outline-offset: 1px;
+}
+
+.paste-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.paste-again {
+  align-self: center;
+  margin-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+/* ---------- Manual mode: empty state, FAB, modal ---------- */
+
+.dashboard {
+  padding-bottom: max(96px, env(safe-area-inset-bottom));
+}
+
+.empty-panel {
+  width: 100%;
+  max-width: 640px;
+  align-self: center;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 28px;
+}
+
+.fab {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: #0b0b0b;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(252, 82, 0, 0.35);
+  z-index: 60;
+}
+
+.fab:hover {
+  filter: brightness(1.05);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.72);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal {
+  width: 100%;
+  max-width: 680px;
+  max-height: 88dvh;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.footer-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.footer-link:hover {
+  color: var(--text);
+}
+
+@media (max-width: 520px) {
+  .modal {
+    padding: 16px;
+    max-height: 92dvh;
+  }
+
+  .modal-actions .btn {
+    flex: 1 1 auto;
+  }
+}

@@ -12,6 +12,13 @@ A small, calm dashboard for your Strava walks. PIN-gated, multi-user (up to 10),
 - Badge for consecutive 5k+ walks
 - No targets, no calories, no leaderboards, no daily-streak guilt
 
+## Two modes
+
+- **Manual (default, no setup)** — `/` opens the manual dashboard. Tap the `+` button, paste rows from the activity table, and they are saved in this browser's `localStorage`. Duplicate rows are skipped using `start time + duration + distance`. No database, PIN, or Strava API app required.
+- **Strava sync (optional)** — `/strava` keeps the PIN + OAuth dashboard. It requires the database and Strava API app setup described below.
+
+`/manual` is an alias of the manual view. `/local` renders `data/pi-activities.json` in development only.
+
 ## Stack
 
 Next.js 15 (App Router) · TypeScript · Prisma · PostgreSQL · plain CSS · zero chart libraries.
@@ -20,7 +27,10 @@ Next.js 15 (App Router) · TypeScript · Prisma · PostgreSQL · plain CSS · ze
 
 ```bash
 npm install
+npm run dev
 ```
+
+For the default manual mode that is all you need. Steps 2–4 are only required for the optional `/strava` dashboard.
 
 ## 2. Create a database
 
@@ -91,6 +101,34 @@ docker compose down -v && docker compose up -d --build
 ```
 
 `down -v` deletes the database volume. Logs: `docker compose logs -f app`.
+
+## Local import (no Strava API)
+
+For previewing activity data without OAuth, a database, or cookies:
+
+1. Save an activity payload at `data/pi-activities.json` (shape: `{ "data": [ ... ] }`, fields `title`, `sport_name`, `start_date`, `end_date`, `distance` in metres, `duration` in seconds, `platform_activity_id`, `points`).
+2. Run `npm run dev` and open <http://localhost:3000/local>.
+
+The page is development-only (`notFound()` in production) and `data/` is gitignored. It filters `sport_name = "Walking"` and `points_status = "counted"`, maps to the same metric model as the dashboard, and links each row to Strava via `platform_activity_id`. `data/` is also excluded from the Docker build.
+
+## Manual paste
+
+Open <http://localhost:3000/manual> and paste rows copied from the activity table. Headers are optional and fields can be one per line or tab-separated. Expected order:
+
+```
+date
+start (date, HH.MM)
+end (date, HH.MM)
+status (Diterima / Ditolak)
+activity title
+sport (Walking)
+points (+3)
+duration (1j 21m / 58m)
+distance (7,07 km)
+calories (optional)
+```
+
+Parsing happens entirely in the browser: nothing is uploaded, saved, or sent to Strava. Rejected rows and non-walking sports are skipped and reported above the dashboard.
 
 ## Verification
 

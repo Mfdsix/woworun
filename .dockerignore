@@ -13,6 +13,7 @@ dist
 !.env.example
 
 handoff
+data
 *.log
 npm-debug.log*
 
