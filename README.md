@@ -14,7 +14,7 @@ A small, calm dashboard for your Strava walks. PIN-gated, multi-user (up to 10),
 
 ## Two modes
 
-- **Manual (default)** — after PIN unlock, `/` shows the manual dashboard. Entries are saved in `localStorage`, namespaced by user id. It needs the database for PIN auth, but no Strava API app.
+- **Manual (default)** — after PIN unlock, `/` shows the manual dashboard. Entries are stored in Postgres per PIN user and deduplicated by `start time + duration + distance`, so they follow you across devices. No Strava API app required.
 - **Strava sync (optional)** — `/strava` keeps the PIN + OAuth dashboard. It requires the database and the Strava API app setup described below.
 
 `/manual` is an alias of the manual view. `/local` renders `data/pi-activities.json` in development only.
@@ -85,10 +85,11 @@ Vercel + Neon (or any Postgres). Add all env vars from `.env.example`, set `APP_
 ## PWA
 
 - Install via the browser's **Add to Home Screen**. The manifest is `/manifest.webmanifest`; icons live in `public/icons/` plus `public/apple-touch-icon.png`.
-- `public/sw.js` caches the app shell and static assets, and serves `/offline` when a navigation fails. The manual dashboard works offline because its data is in `localStorage`.
+- The installed app uses `display: fullscreen` (with `standalone` as fallback), so Android hides the browser and status bars. If you change the display mode, uninstall and reinstall the PWA — Android caches the old display mode. iOS does not support fullscreen PWAs; it falls back to standalone with a translucent status bar.
+- `public/sw.js` caches the app shell and static assets, and serves `/offline` when a navigation fails. The cached dashboard shows the last server-rendered data; adding activities while offline needs a connection on the next load.
 - Service worker registration runs only in production builds; `npm run dev` never registers one.
 - When a new worker is waiting, the app shows an **Update available · Reload** banner. Bump `VERSION` in `public/sw.js` when the caching strategy changes.
-- Manual data is per browser, per device, and now per PIN user id.
+- Manual entries live in Postgres, keyed by PIN user id. Browsers with old `localStorage` data import it once, then remove the browser copy.
 
 ## Docker (app + Postgres)
 
@@ -109,6 +110,12 @@ docker compose down -v && docker compose up -d --build
 ```
 
 `down -v` deletes the database volume. Logs: `docker compose logs -f app`.
+
+If an existing volume predates the `manual_activities` table, apply the additive migration once — no volume reset needed:
+
+```bash
+docker compose exec -T db psql -U walklog -d walklog < docker/manual-activities.sql
+```
 
 ## Local import (no Strava API)
 
@@ -174,8 +181,7 @@ npm run build
 
 ## Layout notes
 
-- Phone: single column, hero + chart + rhythm visible with minimal scrolling.
-- Fold inner display (≥640 px): hero split into month/7-day columns, chart beside rhythm, recent list two columns.
-- Short landscape (≤520 px tall): three dense columns; the page scrolls.
-
-Verified with Chrome mobile emulation at 390×844, 673×841, 841×673, and 900×420.
+- Phone: one column. Hero, last 6 walks, last 7 days, then recent; the page scrolls.
+- Wide (≥600 px, including the Fold inner screen): two equal columns (50/50). Hero plus chart on the left; last 7 days plus recent on the right.
+- The shell locks to `100dvh` on wide screens, with the recent list scrolling internally. On phones it grows naturally.
+- Verified with Chrome mobile emulation at 390×844, 673×841, 841×673, 900×420, and 1280×800.

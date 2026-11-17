@@ -18,6 +18,7 @@ model User {
 
   strava   StravaConnection?
   snapshot DashboardSnapshot?
+  manual   ManualActivity[]
 
   @@map("users")
 }
@@ -59,4 +60,24 @@ model RateBucket {
   windowStart DateTime @map("window_start") @db.Timestamptz(6)
 
   @@map("rate_buckets")
+}
+
+model ManualActivity {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  /// startLocal|elapsedTimeS|round(distanceM) — dedupes the same row per user.
+  activityKey  String   @map("activity_key")
+  name         String
+  startLocal   String   @map("start_local")
+  distanceM    Float    @map("distance_m")
+  movingTimeS  Int      @map("moving_time_s")
+  elapsedTimeS Int      @map("elapsed_time_s")
+  points       Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityKey])
+  @@index([userId, startLocal])
+  @@map("manual_activities")
 }

@@ -51,6 +51,22 @@ CREATE TABLE "rate_buckets" (
     CONSTRAINT "rate_buckets_pkey" PRIMARY KEY ("key")
 );
 
+-- CreateTable
+CREATE TABLE "manual_activities" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "activity_key" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "start_local" TEXT NOT NULL,
+    "distance_m" DOUBLE PRECISION NOT NULL,
+    "moving_time_s" INTEGER NOT NULL,
+    "elapsed_time_s" INTEGER NOT NULL,
+    "points" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "manual_activities_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_pin_lookup_key" ON "users"("pin_lookup");
 
@@ -63,9 +79,18 @@ CREATE UNIQUE INDEX "strava_connections_athlete_id_key" ON "strava_connections"(
 -- CreateIndex
 CREATE INDEX "dashboard_snapshots_expires_at_idx" ON "dashboard_snapshots"("expires_at");
 
+-- CreateIndex
+CREATE INDEX "manual_activities_user_id_start_local_idx" ON "manual_activities"("user_id", "start_local");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "manual_activities_user_id_activity_key_key" ON "manual_activities"("user_id", "activity_key");
+
 -- AddForeignKey
 ALTER TABLE "strava_connections" ADD CONSTRAINT "strava_connections_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "dashboard_snapshots" ADD CONSTRAINT "dashboard_snapshots_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "manual_activities" ADD CONSTRAINT "manual_activities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

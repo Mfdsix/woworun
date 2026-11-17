@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUserId } from "@/lib/auth/session";
-import { ManualView } from "./manual-view";
+import { ManualDashboard } from "./manual-dashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -8,5 +8,5 @@ export default async function ManualPage() {
   const userId = await getSessionUserId();
   if (!userId) redirect("/unlock");
 
-  return <ManualView userId={userId} />;
+  return <ManualDashboard userId={userId} />;
 }

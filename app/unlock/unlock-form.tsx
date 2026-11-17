@@ -149,7 +149,7 @@ export function UnlockForm() {
         <h1 className="heading">Unlock</h1>
         <p className="sub">Enter your 6-character PIN.</p>
 
-        <div className="pin-slots" onClick={focusInput}>
+        <div className="pin-slots" dir="ltr" onClick={focusInput}>
           {Array.from({ length: PIN_LENGTH }).map((_, index) => (
             <div
               key={index}
@@ -163,6 +163,7 @@ export function UnlockForm() {
         <input
           ref={inputRef}
           className="pin-input"
+          dir="ltr"
           value={value}
           onChange={handleChange}
           onPaste={handlePaste}
