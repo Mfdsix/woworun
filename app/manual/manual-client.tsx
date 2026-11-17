@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseStored, STORAGE_KEY } from "@/lib/import/activity-store";
 import {
@@ -9,7 +9,16 @@ import {
   formatPace,
   formatShortDate,
 } from "@/lib/format";
-import type { DashboardData } from "@/lib/strava/types";
+import { jakartaToday } from "@/lib/strava/dates";
+import type { DashboardData, WalkSession } from "@/lib/strava/types";
+import { CalendarCard } from "./calendar-card";
+import {
+  addMonths,
+  filterWalksByRange,
+  rangeForView,
+  summarizeWalks,
+  type CalendarView,
+} from "./calendar-utils";
 import { ShareSheet } from "./share-sheet";
 
 const SAMPLE = `16 Nov 2026
@@ -58,12 +67,6 @@ type Modal = "add" | "clear" | null;
 
 function todayInJakarta(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
-}
-
-function deltaLabel(deltaM: number | null): string {
-  if (deltaM === null) return "no previous 7 days";
-  const sign = deltaM < 0 ? "-" : "+";
-  return `${sign}${formatKm(Math.abs(deltaM))} km vs previous 7 days`;
 }
 
 function skippedLabel(result: AddResult): string {
@@ -192,12 +195,14 @@ function Chart({ data }: { data: DashboardData }) {
 export function ManualClient({
   userId,
   data,
+  walks,
   walkCount,
   points,
   pointsByWalk,
 }: {
   userId: string;
   data: DashboardData | null;
+  walks: WalkSession[];
   walkCount: number;
   points: number;
   pointsByWalk: Record<string, number>;
@@ -211,6 +216,8 @@ export function ManualClient({
   const [toast, setToast] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [calView, setCalView] = useState<CalendarView>("month");
+  const [anchorDate, setAnchorDate] = useState(() => jakartaToday());
   const [quick, setQuick] = useState({
     title: "",
     km: "",
@@ -286,10 +293,10 @@ export function ManualClient({
   }, [toast]);
 
   useEffect(() => {
-    if (selectedId && !data?.recent.some((walk) => walk.id === selectedId)) {
+    if (selectedId && !walks.some((walk) => walk.id === selectedId)) {
       setSelectedId(null);
     }
-  }, [data, selectedId]);
+  }, [walks, selectedId]);
 
   useEffect(() => {
     if (!modal) return;
@@ -325,6 +332,16 @@ export function ManualClient({
     requestAnimationFrame(() => {
       heroRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  }
+
+  function handleSelectDate(date: string) {
+    setAnchorDate(date);
+    setCalView("day");
+  }
+
+  function handleToday() {
+    setAnchorDate(jakartaToday());
+    setCalView("month");
   }
 
   async function postJson(url: string, body: unknown) {
@@ -474,12 +491,20 @@ export function ManualClient({
   }
 
   const month = data?.month ?? null;
-  const last7 = data?.last7 ?? null;
+  const historyRange = rangeForView(calView, anchorDate);
+  const historyWalks = useMemo(
+    () => filterWalksByRange(walks, historyRange),
+    [walks, historyRange],
+  );
+  const historySummary = useMemo(
+    () => summarizeWalks(historyWalks),
+    [historyWalks],
+  );
   const avgWalk = month && month.walkCount > 0 ? month.distanceM / month.walkCount : 0;
   const longest = data?.records.longestMonthM ?? 0;
   const avgBarWidth = longest > 0 ? Math.min(100, Math.max(12, (avgWalk / longest) * 100)) : 0;
   const streak = data?.records.fiveKStreak ?? 0;
-  const selected = data?.recent.find((walk) => walk.id === selectedId) ?? null;
+  const selected = walks.find((walk) => walk.id === selectedId) ?? null;
   const selectedPoints = selected ? (pointsByWalk[selected.id] ?? 0) : 0;
   const selectedDelta = selected ? selected.distanceM - avgWalk : 0;
 
@@ -515,7 +540,7 @@ export function ManualClient({
         </div>
       </header>
 
-      {!data || !month || !last7 ? (
+      {!data || !month ? (
         <section className="wl-empty">
           <span className="wl-kicker">NO ACTIVITIES YET</span>
           <h2 className="wl-empty-title">Add your first walk</h2>
@@ -665,41 +690,35 @@ export function ManualClient({
           </section>
 
           <div className="wl-side">
-            <section className="wl-card wl-last7">
-              <div className="wl-row">
-                <span className="wl-kicker">LAST 7 DAYS</span>
-                <span className="wl-delta">{deltaLabel(last7.deltaM)}</span>
-              </div>
-              <div className="wl-row">
-                <div className="wl-last7-number">
-                  {formatKm(last7.distanceM)} <span>km</span>
-                </div>
-                <span className="wl-mono">
-                  {formatDuration(last7.movingTimeS)} · {last7.walkCount} walks
-                </span>
-              </div>
-              <div className="wl-streak-row">
-                <span className="wl-streak">
-                  <span aria-hidden="true">▲</span>
-                  {streak >= 2 ? `${streak} walks ≥5k in a row` : "No 5k streak yet"}
-                </span>
-                <span className="wl-kicker">CONSISTENCY</span>
-              </div>
-            </section>
+            <CalendarCard
+              walks={walks}
+              view={calView}
+              anchorDate={anchorDate}
+              streak={data.records.fiveKStreak}
+              summary={{
+                count: historySummary.count,
+                distanceM: historySummary.distanceM,
+                movingTimeS: historySummary.movingTimeS,
+              }}
+              onSelectDate={handleSelectDate}
+              onViewChange={setCalView}
+              onMonthNav={(delta) => setAnchorDate((current) => addMonths(current, delta))}
+              onToday={handleToday}
+            />
 
             <section className="wl-card wl-recent">
               <div className="wl-recent-head">
                 <div className="wl-row-left">
-                  <span className="wl-kicker">RECENT</span>
-                  <span className="wl-count">{data.recent.length}</span>
+                  <span className="wl-kicker">HISTORY</span>
+                  <span className="wl-count">{historyWalks.length}</span>
                 </div>
                 <span className="wl-kicker">DIST / TIME · PACE</span>
               </div>
               <div className="wl-recent-list">
-                {data.recent.length === 0 ? (
-                  <p className="wl-empty-note">No walks yet.</p>
+                {historyWalks.length === 0 ? (
+                  <p className="wl-empty-note">No walks in this range.</p>
                 ) : (
-                  data.recent.map((walk, index) => (
+                  historyWalks.map((walk, index) => (
                     <div
                       className={`wl-recent-row${selectedId === walk.id ? " is-selected" : ""}`}
                       key={walk.id}
@@ -744,7 +763,7 @@ export function ManualClient({
           <a href="/strava">STRAVA</a>
         </div>
         <div className="wl-footer-right">
-          <span>{last7?.walkCount ?? 0} WALKS IN THE LAST 7 DAYS</span>
+          <span>{walkCount} WALKS TOTAL</span>
           <span className="wl-sep">·</span>
           <button className="wl-link" type="button" onClick={() => setModal("clear")}>
             Clear all

@@ -14,7 +14,7 @@ A small, calm dashboard for your Strava walks. PIN-gated, multi-user (up to 10),
 
 ## Two modes
 
-- **Manual (default)** — after PIN unlock, `/` shows the manual dashboard. Entries are stored in Postgres per PIN user and deduplicated by `start time + duration + distance`, so they follow you across devices. No Strava API app required.
+- **Manual (default)** — after PIN unlock, `/` shows the manual dashboard. Entries are stored in Postgres per PIN user and deduplicated by `start time + duration + distance`, so they follow you across devices. The right column has a monthly calendar (Day / Week / Month views) with a heatmap and a history list filtered to the selected range; tapping a date drills into that day. No Strava API app required.
 - **Strava sync (optional)** — `/strava` keeps the PIN + OAuth dashboard. It requires the database and the Strava API app setup described below.
 
 `/manual` is an alias of the manual view. `/local` renders `data/pi-activities.json` in development only.

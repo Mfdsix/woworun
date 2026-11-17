@@ -13,6 +13,7 @@ export async function ManualDashboard({ userId }: { userId: string }) {
     <ManualClient
       userId={userId}
       data={data}
+      walks={walks}
       walkCount={rows.length}
       points={points}
       pointsByWalk={pointsByWalk}

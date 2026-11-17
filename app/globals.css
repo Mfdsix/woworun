@@ -2174,3 +2174,143 @@ input.pin-slot.is-filled {
 .share-file {
   display: none;
 }
+
+/* ---------- Monthly calendar ---------- */
+
+.wl-calendar {
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.wl-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wl-cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-cal-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--wl-line);
+  border-radius: 6px;
+  background: var(--wl-soft);
+  color: #d4d4d8;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wl-cal-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 85, 0, 0.4);
+}
+
+.wl-cal-month {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wl-text);
+  white-space: nowrap;
+}
+
+.wl-cal-weekdays,
+.wl-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.wl-cal-weekday {
+  text-align: center;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--wl-muted);
+}
+
+.wl-cal-cell {
+  position: relative;
+  height: 38px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--wl-text);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.wl-cal-cell:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.wl-cal-cell:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.wl-cal-daynum {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  font-size: 9.5px;
+  opacity: 0.85;
+}
+
+.wl-cal-dot {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0.9;
+}
+
+.wl-cal-cell.is-today {
+  border-color: var(--wl-accent);
+}
+
+.wl-cal-cell.is-in-range {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.wl-cal-cell.is-selected {
+  border-color: var(--wl-accent);
+  box-shadow: inset 0 0 0 1px var(--wl-accent);
+}
+
+.wl-cal-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.wl-cal-summary-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wl-cal-summary-stats {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--wl-muted);
+  font-variant-numeric: tabular-nums;
+}
