@@ -6,27 +6,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const PIN_LENGTH = 6;
 
 function sanitizePin(raw: string): string {
-  return raw
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, PIN_LENGTH);
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
 export function UnlockForm() {
   const router = useRouter();
-  const [value, setValue] = useState("");
+  const [chars, setChars] = useState<string[]>(() => Array(PIN_LENGTH).fill(""));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsConfirm, setNeedsConfirm] = useState(false);
   const [shaking, setShaking] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const busyRef = useRef(false);
   const lastAutoPin = useRef<string | null>(null);
   const resetTimer = useRef<number | null>(null);
 
-  const focusInput = useCallback(() => {
-    inputRef.current?.focus();
+  const pin = chars.join("");
+
+  const focusInput = useCallback((index: number) => {
+    const target = inputRefs.current[Math.max(0, Math.min(PIN_LENGTH - 1, index))];
+    target?.focus();
+    target?.select();
   }, []);
 
   const clearResetTimer = useCallback(() => {
@@ -37,14 +38,14 @@ export function UnlockForm() {
   }, []);
 
   useEffect(() => {
-    focusInput();
+    focusInput(0);
     return () => {
       clearResetTimer();
     };
   }, [clearResetTimer, focusInput]);
 
   const submit = useCallback(
-    async (pin: string, confirm: boolean) => {
+    async (value: string, confirm: boolean) => {
       if (busyRef.current) return;
       busyRef.current = true;
       setBusy(true);
@@ -54,7 +55,7 @@ export function UnlockForm() {
         const response = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ pin, ...(confirm ? { confirm: true } : {}) }),
+          body: JSON.stringify({ pin: value, ...(confirm ? { confirm: true } : {}) }),
         });
 
         if (response.status === 200) {
@@ -74,8 +75,9 @@ export function UnlockForm() {
           lastAutoPin.current = null;
           clearResetTimer();
           resetTimer.current = window.setTimeout(() => {
-            setValue("");
+            setChars(Array(PIN_LENGTH).fill(""));
             setShaking(false);
+            focusInput(0);
             resetTimer.current = null;
           }, 600);
           return;
@@ -99,47 +101,93 @@ export function UnlockForm() {
         setBusy(false);
       }
     },
-    [clearResetTimer, router],
+    [clearResetTimer, focusInput, router],
   );
 
   useEffect(() => {
-    if (needsConfirm) return;
+    if (needsConfirm || busy) return;
 
-    if (value.length !== PIN_LENGTH) {
+    if (pin.length !== PIN_LENGTH) {
       lastAutoPin.current = null;
       return;
     }
 
-    if (lastAutoPin.current === value) return;
-    lastAutoPin.current = value;
-    void submit(value, false);
-  }, [needsConfirm, submit, value]);
+    if (lastAutoPin.current === pin) return;
+    lastAutoPin.current = pin;
+    void submit(pin, false);
+  }, [busy, needsConfirm, pin, submit]);
 
-  function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
-    setValue(sanitizePin(event.target.value));
+  function writeAt(index: number, raw: string) {
+    const clean = sanitizePin(raw);
+
+    setChars((current) => {
+      const next = [...current];
+      if (!clean) {
+        next[index] = "";
+        return next;
+      }
+      for (let offset = 0; offset < clean.length && index + offset < PIN_LENGTH; offset += 1) {
+        next[index + offset] = clean[offset];
+      }
+      return next;
+    });
+
+    focusInput(index + Math.max(0, clean.length));
+  }
+
+  function handleChange(index: number, event: React.ChangeEvent<HTMLInputElement>) {
+    writeAt(index, event.target.value);
+  }
+
+  function handleKeyDown(index: number, event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Backspace") {
+      if (chars[index]) {
+        event.preventDefault();
+        setChars((current) => {
+          const next = [...current];
+          next[index] = "";
+          return next;
+        });
+      } else if (index > 0) {
+        event.preventDefault();
+        setChars((current) => {
+          const next = [...current];
+          next[index - 1] = "";
+          return next;
+        });
+        focusInput(index - 1);
+      }
+      return;
+    }
+
+    if (event.key === "ArrowLeft" && index > 0) {
+      event.preventDefault();
+      focusInput(index - 1);
+    }
+
+    if (event.key === "ArrowRight" && index < PIN_LENGTH - 1) {
+      event.preventDefault();
+      focusInput(index + 1);
+    }
   }
 
   function handlePaste(event: React.ClipboardEvent<HTMLInputElement>) {
     event.preventDefault();
-    setValue(sanitizePin(event.clipboardData.getData("text")));
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Backspace" && value.length === 0) {
-      event.preventDefault();
-    }
+    const clean = sanitizePin(event.clipboardData.getData("text")).slice(0, PIN_LENGTH);
+    setChars(Array.from({ length: PIN_LENGTH }, (_, index) => clean[index] ?? ""));
+    focusInput(clean.length);
   }
 
   function handleConfirm() {
-    void submit(value, true);
+    void submit(pin, true);
   }
 
   function handleCancel() {
     setNeedsConfirm(false);
     setError(null);
-    setValue("");
+    setChars(Array(PIN_LENGTH).fill(""));
     lastAutoPin.current = null;
-    focusInput();
+    focusInput(0);
   }
 
   return (
@@ -149,34 +197,31 @@ export function UnlockForm() {
         <h1 className="heading">Unlock</h1>
         <p className="sub">Enter your 6-character PIN.</p>
 
-        <div className="pin-slots" dir="ltr" onClick={focusInput}>
-          {Array.from({ length: PIN_LENGTH }).map((_, index) => (
-            <div
+        <div className="pin-slots" dir="ltr">
+          {chars.map((char, index) => (
+            <input
               key={index}
-              className={`pin-slot${value.length > index ? " is-filled" : ""}`}
-            >
-              {value[index] ?? ""}
-            </div>
+              ref={(element) => {
+                inputRefs.current[index] = element;
+              }}
+              className={`pin-slot${char ? " is-filled" : ""}`}
+              dir="ltr"
+              value={char}
+              onChange={(event) => handleChange(index, event)}
+              onKeyDown={(event) => handleKeyDown(index, event)}
+              onPaste={handlePaste}
+              type="text"
+              inputMode="text"
+              autoComplete="one-time-code"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              maxLength={1}
+              aria-label={`PIN character ${index + 1}`}
+              disabled={busy}
+            />
           ))}
         </div>
-
-        <input
-          ref={inputRef}
-          className="pin-input"
-          dir="ltr"
-          value={value}
-          onChange={handleChange}
-          onPaste={handlePaste}
-          onKeyDown={handleKeyDown}
-          type="text"
-          inputMode="text"
-          autoComplete="one-time-code"
-          autoCapitalize="characters"
-          spellCheck={false}
-          maxLength={PIN_LENGTH}
-          aria-label="PIN"
-          disabled={busy}
-        />
 
         {needsConfirm ? (
           <div className="confirm-panel">
@@ -190,12 +235,7 @@ export function UnlockForm() {
               >
                 Create space
               </button>
-              <button
-                className="btn btn-ghost"
-                type="button"
-                onClick={handleCancel}
-                disabled={busy}
-              >
+              <button className="btn btn-ghost" type="button" onClick={handleCancel} disabled={busy}>
                 Cancel
               </button>
             </div>

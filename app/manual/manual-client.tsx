@@ -93,6 +93,24 @@ function BrandMark() {
   );
 }
 
+function HomeIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5 9.5V21h14V9.5" />
+      <path d="M10 21v-6h4v6" />
+    </svg>
+  );
+}
+
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="wl-stat">
@@ -157,11 +175,13 @@ export function ManualClient({
   data,
   walkCount,
   points,
+  pointsByWalk,
 }: {
   userId: string;
   data: DashboardData | null;
   walkCount: number;
   points: number;
+  pointsByWalk: Record<string, number>;
 }) {
   const router = useRouter();
   const [modal, setModal] = useState<Modal>(null);
@@ -170,6 +190,7 @@ export function ManualClient({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [quick, setQuick] = useState({
     title: "",
     km: "",
@@ -179,6 +200,7 @@ export function ManualClient({
   });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const heroRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,6 +266,12 @@ export function ManualClient({
   }, [toast]);
 
   useEffect(() => {
+    if (selectedId && !data?.recent.some((walk) => walk.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [data, selectedId]);
+
+  useEffect(() => {
     if (!modal) return;
 
     const previous = document.body.style.overflow;
@@ -270,6 +298,13 @@ export function ManualClient({
     setTab(nextTab);
     setError(null);
     setModal("add");
+  }
+
+  function selectWalk(id: string) {
+    setSelectedId(id);
+    requestAnimationFrame(() => {
+      heroRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   async function postJson(url: string, body: unknown) {
@@ -424,6 +459,9 @@ export function ManualClient({
   const longest = data?.records.longestMonthM ?? 0;
   const avgBarWidth = longest > 0 ? Math.min(100, Math.max(12, (avgWalk / longest) * 100)) : 0;
   const streak = data?.records.fiveKStreak ?? 0;
+  const selected = data?.recent.find((walk) => walk.id === selectedId) ?? null;
+  const selectedPoints = selected ? (pointsByWalk[selected.id] ?? 0) : 0;
+  const selectedDelta = selected ? selected.distanceM - avgWalk : 0;
 
   return (
     <div className="wl-shell">
@@ -476,49 +514,114 @@ export function ManualClient({
         </section>
       ) : (
         <main className="wl-main">
-          <section className="wl-hero">
+          <section className="wl-hero" ref={heroRef}>
             <div className="wl-accent-line" />
 
-            <div className="wl-row">
-              <div className="wl-row-left">
-                <span className="wl-kicker">{month.label.toUpperCase()}</span>
-                <span className="wl-badge">ACTIVE MONTH</span>
-              </div>
-              <span className="wl-summary wl-summary-compact">
-                {walkCount} walks · {points} pts
-              </span>
-            </div>
-
-            <div className="wl-hero-main">
-              <div className="wl-hero-line">
-                <span className="wl-hero-number">{formatKm(month.distanceM)}</span>
-                <span className="wl-unit">km</span>
-              </div>
-
-              <div className="wl-stats">
-                <StatCard label="WALKS" value={String(month.walkCount)} />
-                <StatCard label="DURATION" value={formatDuration(month.movingTimeS)} />
-                <StatCard label="AVG PACE" value={`${formatPace(month.avgPaceSecPerKm)}/km`} accent />
-              </div>
-
-              <div className="wl-substats">
-                <div className="wl-substat">
-                  <div className="wl-row">
-                    <span className="wl-stat-label">AVG / WALK</span>
-                    <span className="wl-substat-value">{formatKm(avgWalk)} km</span>
+            {selected ? (
+              <>
+                <div className="wl-row">
+                  <div className="wl-row-left">
+                    <span className="wl-kicker">ACTIVITY DETAIL</span>
+                    <span className="wl-badge">{formatShortDate(selected.startLocal)}</span>
                   </div>
-                  <div className="wl-avg-track">
-                    <span style={{ width: `${avgBarWidth}%` }} />
+                  <button
+                    className="wl-home"
+                    type="button"
+                    aria-label="Back to month overview"
+                    onClick={() => setSelectedId(null)}
+                  >
+                    <HomeIcon />
+                  </button>
+                </div>
+
+                <div className="wl-detail-main">
+                  <h2 className="wl-detail-title">{selected.name}</h2>
+                  <p className="wl-detail-meta">
+                    {formatShortDate(selected.startLocal)} · {selected.startLocal.slice(11, 16)}
+                  </p>
+
+                  <div className="wl-hero-line">
+                    <span className="wl-hero-number">{formatKm(selected.distanceM)}</span>
+                    <span className="wl-unit">km</span>
+                  </div>
+
+                  <div className="wl-stats">
+                    <StatCard label="DURATION" value={formatDuration(selected.movingTimeS)} />
+                    <StatCard
+                      label="PACE"
+                      value={`${formatPace(selected.movingTimeS / (selected.distanceM / 1000))}/km`}
+                      accent
+                    />
+                    <StatCard label="START" value={selected.startLocal.slice(11, 16)} />
+                  </div>
+
+                  <div className="wl-substats">
+                    <div className="wl-substat">
+                      <span className="wl-stat-label">VS AVG / WALK</span>
+                      <span className="wl-substat-value">
+                        {selectedDelta >= 0 ? "+" : "-"}
+                        {formatKm(Math.abs(selectedDelta))} km
+                      </span>
+                    </div>
+                    <div className="wl-substat is-peak">
+                      <span className="wl-stat-label">POINTS</span>
+                      <span className="wl-peak-value">+{selectedPoints} pts</span>
+                    </div>
+                  </div>
+
+                  <p className="wl-detail-hint">
+                    Selected from Recent · tap the home icon to return to {month.label}.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="wl-row">
+                  <div className="wl-row-left">
+                    <span className="wl-kicker">{month.label.toUpperCase()}</span>
+                    <span className="wl-badge">ACTIVE MONTH</span>
+                  </div>
+                  <span className="wl-summary wl-summary-compact">
+                    {walkCount} walks · {points} pts
+                  </span>
+                </div>
+
+                <div className="wl-hero-main">
+                  <div className="wl-hero-line">
+                    <span className="wl-hero-number">{formatKm(month.distanceM)}</span>
+                    <span className="wl-unit">km</span>
+                  </div>
+
+                  <div className="wl-stats">
+                    <StatCard label="WALKS" value={String(month.walkCount)} />
+                    <StatCard label="DURATION" value={formatDuration(month.movingTimeS)} />
+                    <StatCard
+                      label="AVG PACE"
+                      value={`${formatPace(month.avgPaceSecPerKm)}/km`}
+                      accent
+                    />
+                  </div>
+
+                  <div className="wl-substats">
+                    <div className="wl-substat">
+                      <div className="wl-row">
+                        <span className="wl-stat-label">AVG / WALK</span>
+                        <span className="wl-substat-value">{formatKm(avgWalk)} km</span>
+                      </div>
+                      <div className="wl-avg-track">
+                        <span style={{ width: `${avgBarWidth}%` }} />
+                      </div>
+                    </div>
+                    <div className="wl-substat is-peak">
+                      <span className="wl-stat-label">LONGEST</span>
+                      <span className="wl-peak-value">{formatKm(longest)} km</span>
+                    </div>
                   </div>
                 </div>
-                <div className="wl-substat is-peak">
-                  <span className="wl-stat-label">LONGEST</span>
-                  <span className="wl-peak-value">{formatKm(longest)} km</span>
-                </div>
-              </div>
-            </div>
 
-            <Chart data={data} />
+                <Chart data={data} />
+              </>
+            )}
           </section>
 
           <div className="wl-side">
@@ -557,7 +660,20 @@ export function ManualClient({
                   <p className="wl-empty-note">No walks yet.</p>
                 ) : (
                   data.recent.map((walk, index) => (
-                    <div className="wl-recent-row" key={walk.id}>
+                    <div
+                      className={`wl-recent-row${selectedId === walk.id ? " is-selected" : ""}`}
+                      key={walk.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selectedId === walk.id}
+                      onClick={() => selectWalk(walk.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          selectWalk(walk.id);
+                        }
+                      }}
+                    >
                       <div className="wl-recent-main">
                         <span className={`wl-row-dot${index === 0 ? " is-latest" : ""}`} />
                         <span className="wl-recent-name">{walk.name}</span>

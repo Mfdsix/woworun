@@ -1980,3 +1980,123 @@ body {
     font-size: 10px;
   }
 }
+
+/* ---------- PIN slot inputs (6 separate LTR fields) ---------- */
+
+input.pin-slot {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 56px;
+  padding: 0;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-transform: uppercase;
+  direction: ltr;
+  caret-color: var(--accent);
+}
+
+input.pin-slot:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(252, 82, 0, 0.18);
+}
+
+input.pin-slot.is-filled {
+  border-color: var(--accent);
+}
+
+/* ---------- Activity detail + selectable recent ---------- */
+
+.wl-home {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--wl-line);
+  border-radius: 6px;
+  background: var(--wl-soft);
+  color: var(--wl-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.wl-home svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wl-home:hover {
+  color: var(--wl-text);
+  border-color: rgba(255, 85, 0, 0.4);
+}
+
+.wl-home:focus-visible {
+  outline: 2px solid rgba(255, 85, 0, 0.45);
+  outline-offset: 1px;
+}
+
+.wl-detail-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-block: auto;
+}
+
+.wl-detail-title {
+  font-size: clamp(20px, 3vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.wl-detail-meta {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--wl-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wl-detail-hint {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: #71717a;
+}
+
+.wl-recent-row {
+  cursor: pointer;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.wl-recent-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.wl-recent-row:focus-visible {
+  outline: 2px solid rgba(255, 85, 0, 0.45);
+  outline-offset: -2px;
+}
+
+.wl-recent-row.is-selected {
+  background: rgba(255, 85, 0, 0.08);
+  box-shadow: inset 2px 0 0 var(--wl-accent);
+}
+
+.wl-recent-row.is-selected .wl-row-dot {
+  background: var(--wl-accent);
+}
+
+@media (max-width: 599px) {
+  .wl-hero {
+    min-height: calc(100dvh - 76px);
+  }
+}
