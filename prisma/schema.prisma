@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// HMAC(APP_SECRET, "pin-lookup" || pin) — used to FIND the user, never the PIN.
+  pinLookup String   @unique @map("pin_lookup")
+  /// scrypt hash — used to VERIFY the PIN.
+  pinHash   String   @map("pin_hash")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  strava   StravaConnection?
+  snapshot DashboardSnapshot?
+
+  @@map("users")
+}
+
+model StravaConnection {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  athleteId       BigInt    @unique @map("athlete_id")
+  athleteName     String?   @map("athlete_name")
+  avatarUrl       String?   @map("avatar_url")
+  scope           String
+  refreshTokenEnc String    @map("refresh_token_enc")
+  accessTokenEnc  String?   @map("access_token_enc")
+  accessExpiresAt DateTime? @map("access_expires_at") @db.Timestamptz(6)
+  /// active | needs_reauth
+  status          String    @default("active")
+  connectedAt     DateTime  @default(now()) @map("connected_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("strava_connections")
+}
+
+model DashboardSnapshot {
+  userId     String   @id @map("user_id") @db.Uuid
+  payload    Json
+  computedAt DateTime @default(now()) @map("computed_at") @db.Timestamptz(6)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("dashboard_snapshots")
+}
+
+model RateBucket {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @map("window_start") @db.Timestamptz(6)
+
+  @@map("rate_buckets")
+}
