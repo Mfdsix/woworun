@@ -1,29 +1,38 @@
 import { NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/auth/session";
-import { open } from "@/lib/crypto/secret-box";
-import { getEnv } from "@/lib/env";
-import { deleteConnection, getConnection } from "@/lib/strava/connection";
+import { publicUrl } from "@/lib/http";
+import {
+  deleteConnection,
+  getConnection,
+  getValidAccessToken,
+} from "@/lib/strava/connection";
 import { deauthorize } from "@/lib/strava/oauth";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request): Promise<NextResponse> {
+export async function POST(): Promise<NextResponse> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return NextResponse.redirect(new URL("/unlock", request.url), 303);
+    return NextResponse.redirect(publicUrl("/unlock"), 303);
   }
 
   const connection = await getConnection(userId);
 
-  if (connection?.accessTokenEnc) {
+  if (connection) {
     try {
-      await deauthorize(open(connection.accessTokenEnc, getEnv().APP_SECRET, userId));
+      const token = await getValidAccessToken(userId);
+      if (token) {
+        try {
+          await deauthorize(token);
+        } catch {
+          // Best effort: disconnect proceeds even if Strava is unreachable.
+        }
+      }
     } catch {
-      // Best effort: local deletion proceeds even if Strava deauthorization fails.
+      // Best effort: disconnect proceeds even if the token cannot be refreshed.
     }
   }
 
   await deleteConnection(userId);
-
-  return NextResponse.redirect(new URL("/connect", request.url), 303);
+  return NextResponse.redirect(publicUrl("/connect"), 303);
 }

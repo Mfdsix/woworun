@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/auth/session";
 import { getEnv } from "@/lib/env";
+import { publicUrl } from "@/lib/http";
 import { saveConnection } from "@/lib/strava/connection";
 import { exchangeCode, STRAVA_SCOPE } from "@/lib/strava/oauth";
 import { verifyOAuthState } from "@/lib/strava/state";
@@ -12,8 +13,8 @@ export const runtime = "nodejs";
 
 const NONCE_COOKIE = "wl_oauth_nonce";
 
-function redirectAndClearNonce(request: Request, path: string): NextResponse {
-  const response = NextResponse.redirect(new URL(path, request.url), 302);
+function redirectAndClearNonce(path: string): NextResponse {
+  const response = NextResponse.redirect(publicUrl(path), 302);
   response.cookies.set(NONCE_COOKIE, "", {
     httpOnly: true,
     sameSite: "lax",
@@ -34,7 +35,7 @@ function nonceMatches(stored: string, received: string): boolean {
 export async function GET(request: Request): Promise<NextResponse> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return NextResponse.redirect(new URL("/unlock", request.url), 302);
+    return NextResponse.redirect(publicUrl("/unlock"), 302);
   }
 
   const url = new URL(request.url);
@@ -43,23 +44,23 @@ export async function GET(request: Request): Promise<NextResponse> {
   const error = url.searchParams.get("error");
 
   if (error) {
-    return redirectAndClearNonce(request, "/connect?error=denied");
+    return redirectAndClearNonce("/connect?error=denied");
   }
 
   if (!code || !state) {
-    return redirectAndClearNonce(request, "/connect?error=invalid_callback");
+    return redirectAndClearNonce("/connect?error=invalid_callback");
   }
 
   const env = getEnv();
   const verified = verifyOAuthState(state, env.APP_SECRET);
   if (!verified.ok || verified.userId !== userId) {
-    return redirectAndClearNonce(request, "/connect?error=invalid_callback");
+    return redirectAndClearNonce("/connect?error=invalid_callback");
   }
 
   const store = await cookies();
   const storedNonce = store.get(NONCE_COOKIE)?.value;
   if (!storedNonce || !nonceMatches(storedNonce, verified.nonce)) {
-    return redirectAndClearNonce(request, "/connect?error=invalid_callback");
+    return redirectAndClearNonce("/connect?error=invalid_callback");
   }
 
   try {
@@ -74,10 +75,10 @@ export async function GET(request: Request): Promise<NextResponse> {
       caught instanceof Prisma.PrismaClientKnownRequestError &&
       caught.code === "P2002"
     ) {
-      return redirectAndClearNonce(request, "/connect?error=already_linked");
+      return redirectAndClearNonce("/connect?error=already_linked");
     }
-    return redirectAndClearNonce(request, "/connect?error=exchange_failed");
+    return redirectAndClearNonce("/connect?error=exchange_failed");
   }
 
-  return redirectAndClearNonce(request, "/");
+  return redirectAndClearNonce("/");
 }

@@ -2,15 +2,16 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { clearSessionCookie, getSessionUserId } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { publicUrl } from "@/lib/http";
 import { getConnection, getValidAccessToken } from "@/lib/strava/connection";
 import { deauthorize } from "@/lib/strava/oauth";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request): Promise<NextResponse> {
+export async function POST(): Promise<NextResponse> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return NextResponse.redirect(new URL("/unlock", request.url), 303);
+    return NextResponse.redirect(publicUrl("/unlock"), 303);
   }
 
   const connection = await getConnection(userId);
@@ -38,7 +39,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
   }
 
-  const response = NextResponse.redirect(new URL("/unlock", request.url), 303);
+  const response = NextResponse.redirect(publicUrl("/unlock"), 303);
   clearSessionCookie(response);
   return response;
 }
