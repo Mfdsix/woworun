@@ -51,6 +51,12 @@ export function addMonths(dateIso: string, months: number): string {
   return `${targetYear}-${pad(targetMonth + 1)}-${pad(day)}`;
 }
 
+export function daysInMonth(dateIso: string): number {
+  const year = Number(dateIso.slice(0, 4));
+  const month = Number(dateIso.slice(5, 7));
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 export function monthLabel(dateIso: string): string {
   const month = Number(dateIso.slice(5, 7));
   return `${MONTHS[month - 1]} ${dateIso.slice(0, 4)}`;

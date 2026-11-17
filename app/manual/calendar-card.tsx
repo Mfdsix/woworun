@@ -1,86 +1,318 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { formatDuration, formatKm } from "@/lib/format";
 import { jakartaToday, monthKey } from "@/lib/strava/dates";
 import type { WalkSession } from "@/lib/strava/types";
-import {
-  distanceByDay,
-  monthGrid,
-  monthLabel,
-  rangeForView,
-  rangeLabel,
-  type CalendarView,
-} from "./calendar-utils";
+import { daysInMonth, monthGrid, monthLabel, type CalendarView } from "./calendar-utils";
+
+const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const WEEKDAY_SHORT = ["M", "T", "W", "T", "F", "S", "S"];
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const MONTH_SHORT = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
 type CalendarCardProps = {
   walks: WalkSession[];
   view: CalendarView;
   anchorDate: string;
+  selectedDate: string | null;
   streak: number;
-  summary: { count: number; distanceM: number; movingTimeS: number };
   onSelectDate: (date: string) => void;
   onViewChange: (view: CalendarView) => void;
   onMonthNav: (delta: number) => void;
   onToday: () => void;
+  onAddForDate: (date: string) => void;
 };
 
-const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
+function pillStyle(totalKm: number, isSelected: boolean): CSSProperties {
+  const ratio = Math.min(1, Math.max(0.25, (totalKm - 2.5) / 5));
+  const start = (0.72 + ratio * 0.28).toFixed(2);
+  const end = (0.58 + ratio * 0.34).toFixed(2);
+  const glow = isSelected ? "0.48" : (0.16 + ratio * 0.18).toFixed(2);
+  return {
+    background: `linear-gradient(135deg, rgba(255, 85, 0, ${start}) 0%, rgba(255, 138, 61, ${end}) 100%)`,
+    boxShadow: `${isSelected ? "0 0 0 2px rgba(255,255,255,0.8), " : ""}inset 0 1px 0 rgba(255,255,255,0.28), 0 4px 14px rgba(255,85,0,${glow})`,
+  };
+}
 
 export function CalendarCard({
   walks,
   view,
   anchorDate,
+  selectedDate,
   streak,
-  summary,
   onSelectDate,
   onViewChange,
   onMonthNav,
   onToday,
+  onAddForDate,
 }: CalendarCardProps) {
-  const grid = monthGrid(anchorDate);
-  const distances = distanceByDay(walks);
   const anchorMonth = monthKey(anchorDate);
-  const monthMax = Math.max(
-    0,
-    ...grid
-      .flat()
-      .filter((date) => monthKey(date) === anchorMonth)
-      .map((date) => distances[date] ?? 0),
-  );
+  const monthWalks = walks.filter((walk) => monthKey(walk.startLocal) === anchorMonth);
+  const monthKm = monthWalks.reduce((sum, walk) => sum + walk.distanceM, 0);
+  const monthSeconds = monthWalks.reduce((sum, walk) => sum + walk.movingTimeS, 0);
+  const activeDays = new Set(monthWalks.map((walk) => walk.startLocal.slice(0, 10))).size;
+  const totalDays = daysInMonth(anchorDate);
+  const consistency = totalDays > 0 ? Math.min(100, Math.round((activeDays / totalDays) * 100)) : 0;
+  const distances = new Map<string, number>();
+  for (const walk of walks) {
+    const date = walk.startLocal.slice(0, 10);
+    distances.set(date, (distances.get(date) ?? 0) + walk.distanceM);
+  }
+  const grid = monthGrid(anchorDate);
   const today = jakartaToday();
-  const viewRange = rangeForView(view, anchorDate);
+  const viewIndex = view === "day" ? 0 : view === "week" ? 1 : 2;
+  const viewRange = view === "day"
+    ? { start: anchorDate, end: anchorDate }
+    : null;
+
+  let title = monthLabel(anchorDate);
+  if (view === "day") {
+    const month = Number(anchorDate.slice(5, 7));
+    title = `${Number(anchorDate.slice(8, 10))} ${MONTH_NAMES[month - 1]} ${anchorDate.slice(0, 4)}`;
+  } else if (view === "week") {
+    const weekStart = grid.flat().find((date) => date === anchorDate);
+    void weekStart;
+    const flat = grid.flat();
+    const anchorIndex = Math.max(0, flat.indexOf(anchorDate));
+    const first = flat[anchorIndex - (anchorIndex % 7)] ?? anchorDate;
+    const last = flat[anchorIndex - (anchorIndex % 7) + 6] ?? anchorDate;
+    const month = Number(last.slice(5, 7));
+    title = `${Number(first.slice(8, 10))} – ${Number(last.slice(8, 10))} ${MONTH_SHORT[month - 1]} ${last.slice(0, 4)}`;
+  }
+
+  function dayKm(date: string): number {
+    return (distances.get(date) ?? 0) / 1000;
+  }
+
+  function daySeconds(date: string): number {
+    const walksOfDay = walks.filter((walk) => walk.startLocal.slice(0, 10) === date);
+    return walksOfDay.reduce((sum, walk) => sum + walk.movingTimeS, 0);
+  }
+
+  function dayTitle(date: string): string {
+    const walksOfDay = walks.filter((walk) => walk.startLocal.slice(0, 10) === date);
+    return walksOfDay.length > 0 ? walksOfDay[0].name : "";
+  }
+
+  function renderMonthGrid() {
+    return (
+      <div className="cal-viewport">
+        <div className="cal-weekdays">
+          {WEEKDAY_SHORT.map((weekday, index) => (
+            <span className="cal-weekday" key={`${weekday}-${index}`}>
+              {weekday}
+            </span>
+          ))}
+        </div>
+        <div className="cal-grid">
+          {grid.flat().map((date) => {
+            const dayKmValue = dayKm(date);
+            const hasWalk = dayKmValue > 0;
+            const outside = monthKey(date) !== anchorMonth;
+            const isSelected = selectedDate === date;
+            const isTodayCell = date === today;
+
+            if (hasWalk) {
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  className="cal-pill"
+                  style={pillStyle(dayKmValue, isSelected)}
+                  onClick={() => onSelectDate(date)}
+                  aria-label={`${date}, ${dayKmValue.toFixed(1)} km`}
+                >
+                  <span className="cal-pill-day">{Number(date.slice(8, 10))}</span>
+                  <span className="cal-pill-km">{dayKmValue.toFixed(1)}k</span>
+                </button>
+              );
+            }
+
+            if (isTodayCell) {
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  className={`cal-ring-cell${isSelected ? " is-picked" : ""}`}
+                  onClick={() => onSelectDate(date)}
+                  aria-label={`${date}, today`}
+                >
+                  <span className="cal-ring-day">{Number(date.slice(8, 10))}</span>
+                  <span className="cal-ring-dot" />
+                </button>
+              );
+            }
+
+            return (
+              <button
+                key={date}
+                type="button"
+                className={`cal-plain-cell${outside ? " is-outside" : ""}${isSelected ? " is-picked" : ""}`}
+                onClick={() => onSelectDate(date)}
+                disabled={outside}
+                aria-label={`${date}${outside ? "" : ", no walk"}`}
+              >
+                {Number(date.slice(8, 10))}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  function renderWeekStrip() {
+    const flat = grid.flat();
+    const anchorIndex = Math.max(0, flat.indexOf(anchorDate));
+    const rowStart = anchorIndex - (anchorIndex % 7);
+    const weekSlice = flat.slice(rowStart, rowStart + 7);
+
+    return (
+      <div className="cal-viewport">
+        <div className="cal-week-strip">
+          {weekSlice.map((date, index) => {
+            const dayKmValue = dayKm(date);
+            const hasWalk = dayKmValue > 0;
+            const isSelected = selectedDate === date;
+            const isTodayCell = date === today;
+
+            if (hasWalk) {
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  className="cal-pill cal-pill-tall"
+                  style={pillStyle(dayKmValue, isSelected)}
+                  onClick={() => onSelectDate(date)}
+                  aria-label={`${date}, ${dayKmValue.toFixed(1)} km`}
+                >
+                  <span className="cal-pill-km">{WEEKDAY_LABELS[index]}</span>
+                  <span className="cal-pill-day">{Number(date.slice(8, 10))}</span>
+                  <span className="cal-pill-km">{dayKmValue.toFixed(1)}k</span>
+                </button>
+              );
+            }
+
+            if (isTodayCell) {
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  className="cal-ring-cell cal-ring-tall"
+                  onClick={() => onSelectDate(date)}
+                  aria-label={`${date}, today`}
+                >
+                  <span className="cal-pill-km is-accent">{WEEKDAY_LABELS[index]}</span>
+                  <span className="cal-ring-day">{Number(date.slice(8, 10))}</span>
+                  <span className="cal-ring-sub">today</span>
+                </button>
+              );
+            }
+
+            return (
+              <button
+                key={date}
+                type="button"
+                className="cal-week-empty"
+                onClick={() => onSelectDate(date)}
+                aria-label={`${date}, no walk`}
+              >
+                <span className="cal-pill-km">{WEEKDAY_LABELS[index]}</span>
+                <span className="cal-week-daynum">{Number(date.slice(8, 10))}</span>
+                <span className="cal-pill-km">—</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  function renderDaySpotlight() {
+    const dayKmValue = dayKm(anchorDate);
+    const daySecondsValue = daySeconds(anchorDate);
+    const hasWalk = dayKmValue > 0;
+    const isTodayCell = anchorDate === today;
+
+    if (hasWalk) {
+      return (
+        <div className="cal-viewport">
+          <div className="cal-spotlight" style={pillStyle(dayKmValue, false)}>
+            <div>
+              <div className="cal-spotlight-kicker">{dayTitle(anchorDate).toUpperCase()}</div>
+              <div className="cal-spotlight-km">{dayKmValue.toFixed(1)} km</div>
+            </div>
+            <div className="cal-spotlight-meta">
+              <div>{formatDuration(daySecondsValue)}</div>
+              <div className="cal-spotlight-pace">
+                {(() => {
+                  const total = Math.max(1, Math.round(daySecondsValue / dayKmValue));
+                  const minutes = Math.floor(total / 60);
+                  const seconds = total % 60;
+                  return `${minutes}'${String(seconds).padStart(2, "0")}"`;
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="cal-viewport">
+        <div className="cal-spotlight-ring">
+          <div>
+            <div className="cal-spotlight-kicker is-accent">
+              {isTodayCell ? "TODAY · REST OR PENDING" : "NO WALK LOGGED"}
+            </div>
+            <div className="cal-spotlight-date">{anchorDate}</div>
+          </div>
+          <button className="wl-btn wl-btn-ghost" type="button" onClick={() => onAddForDate(anchorDate)}>
+            + Log Day
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <section className="wl-card wl-calendar">
-      <div className="wl-cal-head">
+    <section className="wl-card wl-calendar2">
+      <div className="cal-controls">
         <div className="wl-cal-nav">
-          <button
-            className="wl-cal-btn"
-            type="button"
-            aria-label="Previous month"
-            onClick={() => onMonthNav(-1)}
-          >
+          <button className="wl-cal-btn" type="button" aria-label="Previous period" onClick={() => onMonthNav(-1)}>
             ‹
           </button>
-          <span className="wl-cal-month">{monthLabel(anchorDate)}</span>
-          <button
-            className="wl-cal-btn"
-            type="button"
-            aria-label="Next month"
-            onClick={() => onMonthNav(1)}
-          >
+          <h2 className="wl-cal-month">{title.toUpperCase()}</h2>
+          <button className="wl-cal-btn" type="button" aria-label="Next period" onClick={() => onMonthNav(1)}>
             ›
           </button>
         </div>
+
         <div className="wl-actions">
-          <div className="wl-tabs" role="tablist" aria-label="Calendar range">
+          <div className="cal-switch">
+            <span
+              className="cal-switch-thumb"
+              style={{ left: `calc(${viewIndex * 33.333}% + 2px)`, width: "calc(33.333% - 4px)" }}
+            />
             {(["day", "week", "month"] as const).map((option) => (
               <button
                 key={option}
                 type="button"
-                role="tab"
-                aria-selected={view === option}
-                className={view === option ? "is-active" : ""}
+                className={`cal-switch-tab${view === option ? " is-active" : ""}`}
                 onClick={() => onViewChange(option)}
               >
                 {option === "day" ? "Day" : option === "week" ? "Week" : "Month"}
@@ -93,66 +325,33 @@ export function CalendarCard({
         </div>
       </div>
 
-      <div className="wl-cal-weekdays">
-        {WEEKDAYS.map((weekday, index) => (
-          <span className="wl-cal-weekday" key={`${weekday}-${index}`}>
-            {weekday}
+      <div className="cal-body">
+        {view === "month" ? renderMonthGrid() : view === "week" ? renderWeekStrip() : renderDaySpotlight()}
+      </div>
+
+      <div className="gradient-divider" />
+
+      <div className="cal-summary">
+        <div className="cal-summary-left">
+          <span className="cal-summary-km">{formatKm(monthKm)} km</span>
+          <span className="cal-summary-sub">
+            {monthWalks.length} walks · {formatDuration(monthSeconds)}
           </span>
-        ))}
-      </div>
-
-      <div className="wl-cal-grid">
-        {grid.flat().map((date) => {
-          const outside = monthKey(date) !== anchorMonth;
-          const distance = distances[date] ?? 0;
-          const inSelectedRange =
-            date >= viewRange.start && date <= viewRange.end && !outside;
-          const isSelected = date === anchorDate && !outside;
-          const isTodayCell = date === today;
-          const intensity = monthMax > 0 ? distance / monthMax : 0;
-
-          let background: string | undefined;
-          if (isSelected) {
-            background = "rgba(255, 85, 0, 0.5)";
-          } else if (distance > 0) {
-            background = `rgba(255, 85, 0, ${(0.08 + 0.34 * intensity).toFixed(3)})`;
-          } else if (inSelectedRange) {
-            background = "rgba(255, 255, 255, 0.04)";
-          }
-
-          return (
-            <button
-              key={date}
-              type="button"
-              className={`wl-cal-cell${outside ? " is-outside" : ""}${
-                isTodayCell ? " is-today" : ""
-              }${inSelectedRange ? " is-in-range" : ""}${isSelected ? " is-selected" : ""}`}
-              style={background ? { background } : undefined}
-              onClick={() => onSelectDate(date)}
-              disabled={outside}
-              aria-label={`${date}${distance > 0 ? `, ${formatKm(distance)} km` : ", no walk"}`}
-            >
-              <span className="wl-cal-daynum">{Number(date.slice(8, 10))}</span>
-              {distance > 0 && <span className="wl-cal-dot" />}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="wl-cal-summary">
-        <span className="wl-cal-summary-label">{rangeLabel(view, viewRange)}</span>
-        <span className="wl-cal-summary-stats">
-          {summary.count} walks · {formatKm(summary.distanceM)} km ·{" "}
-          {formatDuration(summary.movingTimeS)}
-        </span>
-      </div>
-
-      <div className="wl-streak-row">
-        <span className="wl-streak">
-          <span aria-hidden="true">▲</span>
-          {streak >= 2 ? `${streak} walks ≥5k in a row` : "No 5k streak yet"}
-        </span>
-        <span className="wl-kicker">CONSISTENCY</span>
+        </div>
+        <div className="cal-consistency">
+          <span className="wl-streak">
+            <span aria-hidden="true">▲</span>
+            {streak >= 2 ? `${streak} walks ≥5k in a row` : "No 5k streak yet"}
+          </span>
+          <div className="cal-consistency-inner">
+            <div className="cal-consistency-track">
+              <span style={{ width: `${consistency}%` }} />
+            </div>
+            <span className="cal-consistency-label">
+              {activeDays}/{totalDays}d · {consistency}%
+            </span>
+          </div>
+        </div>
       </div>
     </section>
   );

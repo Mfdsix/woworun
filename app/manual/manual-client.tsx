@@ -9,14 +9,12 @@ import {
   formatPace,
   formatShortDate,
 } from "@/lib/format";
-import { jakartaToday } from "@/lib/strava/dates";
+import { addDays, jakartaToday } from "@/lib/strava/dates";
 import type { DashboardData, WalkSession } from "@/lib/strava/types";
 import { CalendarCard } from "./calendar-card";
 import {
   addMonths,
   filterWalksByRange,
-  rangeForView,
-  summarizeWalks,
   type CalendarView,
 } from "./calendar-utils";
 import { ShareSheet } from "./share-sheet";
@@ -214,7 +212,7 @@ export function ManualClient({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [calView, setCalView] = useState<CalendarView>("month");
   const [anchorDate, setAnchorDate] = useState(() => jakartaToday());
@@ -293,10 +291,10 @@ export function ManualClient({
   }, [toast]);
 
   useEffect(() => {
-    if (selectedId && !walks.some((walk) => walk.id === selectedId)) {
-      setSelectedId(null);
+    if (selectedDate && !walks.some((walk) => walk.startLocal.slice(0, 10) === selectedDate)) {
+      // keep the selection even if the day has no walk — history shows the empty state
     }
-  }, [walks, selectedId]);
+  }, [walks, selectedDate]);
 
   useEffect(() => {
     if (!modal) return;
@@ -321,27 +319,35 @@ export function ManualClient({
     };
   }, [modal, tab]);
 
-  function openAdd(nextTab: "quick" | "paste" = "quick") {
-    setTab(nextTab);
+  function openAdd(options?: { tab?: "quick" | "paste"; date?: string }) {
+    const date = options?.date;
+    setTab(options?.tab ?? "quick");
+    if (date) {
+      setQuick((current) => ({ ...current, date }));
+    }
     setError(null);
     setModal("add");
   }
 
-  function selectWalk(id: string) {
-    setSelectedId(id);
-    requestAnimationFrame(() => {
-      heroRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-
-  function handleSelectDate(date: string) {
-    setAnchorDate(date);
-    setCalView("day");
+  function toggleDate(date: string) {
+    setSelectedDate((current) => (current === date ? null : date));
   }
 
   function handleToday() {
     setAnchorDate(jakartaToday());
-    setCalView("month");
+    setSelectedDate(null);
+  }
+
+  function handleMonthNav(delta: number) {
+    if (calView === "day") {
+      setAnchorDate(addDays(anchorDate, delta));
+      return;
+    }
+    if (calView === "week") {
+      setAnchorDate(addDays(anchorDate, delta * 7));
+      return;
+    }
+    setAnchorDate(addMonths(anchorDate, delta));
   }
 
   async function postJson(url: string, body: unknown) {
@@ -491,20 +497,22 @@ export function ManualClient({
   }
 
   const month = data?.month ?? null;
-  const historyRange = rangeForView(calView, anchorDate);
-  const historyWalks = useMemo(
-    () => filterWalksByRange(walks, historyRange),
-    [walks, historyRange],
-  );
-  const historySummary = useMemo(
-    () => summarizeWalks(historyWalks),
-    [historyWalks],
-  );
+  const historyWalks = useMemo(() => {
+    if (selectedDate) {
+      return filterWalksByRange(walks, { start: selectedDate, end: selectedDate });
+    }
+    return filterWalksByRange(walks, { start: "0000-01-01", end: "9999-12-31" });
+  }, [walks, selectedDate]);
   const avgWalk = month && month.walkCount > 0 ? month.distanceM / month.walkCount : 0;
   const longest = data?.records.longestMonthM ?? 0;
   const avgBarWidth = longest > 0 ? Math.min(100, Math.max(12, (avgWalk / longest) * 100)) : 0;
   const streak = data?.records.fiveKStreak ?? 0;
-  const selected = walks.find((walk) => walk.id === selectedId) ?? null;
+  const selected = useMemo(() => {
+    if (!selectedDate) return null;
+    const dayWalks = walks.filter((walk) => walk.startLocal.slice(0, 10) === selectedDate);
+    if (dayWalks.length === 0) return null;
+    return dayWalks.reduce((latest, walk) => (walk.startLocal > latest.startLocal ? walk : latest));
+  }, [walks, selectedDate]);
   const selectedPoints = selected ? (pointsByWalk[selected.id] ?? 0) : 0;
   const selectedDelta = selected ? selected.distanceM - avgWalk : 0;
 
@@ -529,7 +537,7 @@ export function ManualClient({
             <span className="wl-dot" />
             PIN synced
           </span>
-          <button className="wl-btn wl-btn-accent" type="button" onClick={() => openAdd("quick")}>
+          <button className="wl-btn wl-btn-accent" type="button" onClick={() => openAdd({ tab: "quick" })}>
             <span aria-hidden="true">+</span> Add Walk
           </button>
           <form action="/api/auth/logout" method="post">
@@ -549,10 +557,10 @@ export function ManualClient({
             PIN account and follow you across devices.
           </p>
           <div className="wl-actions">
-            <button className="wl-btn wl-btn-accent" type="button" onClick={() => openAdd("quick")}>
+            <button className="wl-btn wl-btn-accent" type="button" onClick={() => openAdd({ tab: "quick" })}>
               + Add Walk
             </button>
-            <button className="wl-btn wl-btn-ghost" type="button" onClick={() => openAdd("paste")}>
+            <button className="wl-btn wl-btn-ghost" type="button" onClick={() => openAdd({ tab: "paste" })}>
               Paste rows
             </button>
           </div>
@@ -582,7 +590,7 @@ export function ManualClient({
                       className="wl-home"
                       type="button"
                       aria-label="Back to month overview"
-                      onClick={() => setSelectedId(null)}
+                      onClick={() => setSelectedDate(null)}
                     >
                       <HomeIcon />
                     </button>
@@ -678,7 +686,7 @@ export function ManualClient({
                       </div>
                     </div>
                     <div className="wl-substat is-peak">
-                      <span className="wl-stat-label">LONGEST</span>
+                      <span className="wl-stat-label">PEAK</span>
                       <span className="wl-peak-value">{formatKm(longest)} km</span>
                     </div>
                   </div>
@@ -694,58 +702,61 @@ export function ManualClient({
               walks={walks}
               view={calView}
               anchorDate={anchorDate}
+              selectedDate={selectedDate}
               streak={data.records.fiveKStreak}
-              summary={{
-                count: historySummary.count,
-                distanceM: historySummary.distanceM,
-                movingTimeS: historySummary.movingTimeS,
-              }}
-              onSelectDate={handleSelectDate}
+              onSelectDate={toggleDate}
               onViewChange={setCalView}
-              onMonthNav={(delta) => setAnchorDate((current) => addMonths(current, delta))}
+              onMonthNav={handleMonthNav}
               onToday={handleToday}
+              onAddForDate={(date) => openAdd({ date })}
             />
 
-            <section className="wl-card wl-recent">
-              <div className="wl-recent-head">
-                <div className="wl-row-left">
+            <section className="wl-card wl-history">
+              <div className="hist-head">
+                <div className="hist-head-left">
                   <span className="wl-kicker">HISTORY</span>
                   <span className="wl-count">{historyWalks.length}</span>
+                  {selectedDate && (
+                    <button className="wl-chip" type="button" onClick={() => setSelectedDate(null)}>
+                      {formatShortDate(selectedDate)} ×
+                    </button>
+                  )}
                 </div>
                 <span className="wl-kicker">DIST / TIME · PACE</span>
               </div>
-              <div className="wl-recent-list">
+              <div className="hist-list">
                 {historyWalks.length === 0 ? (
-                  <p className="wl-empty-note">No walks in this range.</p>
+                  <div className="hist-empty">
+                    <p className="wl-empty-note">
+                      {selectedDate ? "No walk logged on this date." : "No walks yet."}
+                    </p>
+                    {selectedDate && (
+                      <button className="wl-btn wl-btn-ghost" type="button" onClick={() => setSelectedDate(null)}>
+                        Show all {walkCount} walks
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   historyWalks.map((walk, index) => (
-                    <div
-                      className={`wl-recent-row${selectedId === walk.id ? " is-selected" : ""}`}
+                    <button
+                      className={`hist-row${selectedDate === walk.startLocal.slice(0, 10) ? " is-active" : ""}`}
                       key={walk.id}
-                      role="button"
-                      tabIndex={0}
-                      aria-pressed={selectedId === walk.id}
-                      onClick={() => selectWalk(walk.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          selectWalk(walk.id);
-                        }
-                      }}
+                      type="button"
+                      onClick={() => toggleDate(walk.startLocal.slice(0, 10))}
                     >
-                      <div className="wl-recent-main">
-                        <span className={`wl-row-dot${index === 0 ? " is-latest" : ""}`} />
-                        <span className="wl-recent-name">{walk.name}</span>
-                        <span className="wl-recent-date">{formatShortDate(walk.startLocal)}</span>
+                      <div className="hist-main">
+                        <span className={`hist-dot${index === 0 && !selectedDate ? " is-latest" : ""}`} />
+                        <span className="hist-name">{walk.name}</span>
+                        <span className="hist-date">{formatShortDate(walk.startLocal)}</span>
                       </div>
-                      <div className="wl-recent-stats">
-                        <span className="wl-recent-km">{formatKm(walk.distanceM)} km</span>
-                        <span className="wl-recent-sep">/</span>
-                        <span className="wl-recent-duration">{formatDuration(walk.movingTimeS)}</span>
-                        <span className="wl-recent-sep">·</span>
+                      <div className="hist-stats">
+                        <span className="hist-km">{formatKm(walk.distanceM)} km</span>
+                        <span className="hist-sep">/</span>
+                        <span className="hist-duration">{formatDuration(walk.movingTimeS)}</span>
+                        <span className="hist-sep">·</span>
                         <span>{formatPace(walk.movingTimeS / (walk.distanceM / 1000))}</span>
                       </div>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
