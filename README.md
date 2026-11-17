@@ -72,6 +72,26 @@ Open <http://localhost:3000>. Enter any 6-character PIN, confirm, then connect S
 
 Vercel + Neon (or any Postgres). Add all env vars from `.env.example`, set `APP_URL` to the production origin, and update the Strava callback domain to match.
 
+## Docker (app + Postgres)
+
+```bash
+docker compose up -d --build
+```
+
+Open <http://localhost:6601>. The container serves the app on internal port 3000, published as **6601**.
+
+- Override the host port with `APP_PORT`, e.g. `APP_PORT=8080 docker compose up -d`.
+- If you change the public origin, set `PUBLIC_APP_URL` (defaults to `http://localhost:6601`).
+- Postgres stays internal on the compose network. `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` default to `walklog`; `APP_SECRET` must be present in `.env`.
+- Tables are created from `docker/init.sql` on the first boot of the volume. After changing `prisma/schema.prisma`, regenerate it:
+
+```bash
+npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > docker/init.sql
+docker compose down -v && docker compose up -d --build
+```
+
+`down -v` deletes the database volume. Logs: `docker compose logs -f app`.
+
 ## Verification
 
 ```bash
