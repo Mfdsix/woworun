@@ -10,6 +10,7 @@ import {
   formatShortDate,
 } from "@/lib/format";
 import type { DashboardData } from "@/lib/strava/types";
+import { ShareSheet } from "./share-sheet";
 
 const SAMPLE = `16 Nov 2026
 16 Nov 2026, 16.54
@@ -111,6 +112,24 @@ function HomeIcon() {
   );
 }
 
+function ShareIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 15V3" />
+      <path d="m7 8 5-5 5 5" />
+      <path d="M5 12v7h14v-7" />
+    </svg>
+  );
+}
+
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="wl-stat">
@@ -191,6 +210,7 @@ export function ManualClient({
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const [quick, setQuick] = useState({
     title: "",
     km: "",
@@ -524,14 +544,24 @@ export function ManualClient({
                     <span className="wl-kicker">ACTIVITY DETAIL</span>
                     <span className="wl-badge">{formatShortDate(selected.startLocal)}</span>
                   </div>
-                  <button
-                    className="wl-home"
-                    type="button"
-                    aria-label="Back to month overview"
-                    onClick={() => setSelectedId(null)}
-                  >
-                    <HomeIcon />
-                  </button>
+                  <div className="wl-actions">
+                    <button
+                      className="wl-home"
+                      type="button"
+                      aria-label="Share image"
+                      onClick={() => setShareOpen(true)}
+                    >
+                      <ShareIcon />
+                    </button>
+                    <button
+                      className="wl-home"
+                      type="button"
+                      aria-label="Back to month overview"
+                      onClick={() => setSelectedId(null)}
+                    >
+                      <HomeIcon />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="wl-detail-main">
@@ -581,9 +611,19 @@ export function ManualClient({
                     <span className="wl-kicker">{month.label.toUpperCase()}</span>
                     <span className="wl-badge">ACTIVE MONTH</span>
                   </div>
-                  <span className="wl-summary wl-summary-compact">
-                    {walkCount} walks · {points} pts
-                  </span>
+                  <div className="wl-actions">
+                    <button
+                      className="wl-home"
+                      type="button"
+                      aria-label="Share image"
+                      onClick={() => setShareOpen(true)}
+                    >
+                      <ShareIcon />
+                    </button>
+                    <span className="wl-summary wl-summary-compact">
+                      {walkCount} walks · {points} pts
+                    </span>
+                  </div>
                 </div>
 
                 <div className="wl-hero-main">
@@ -716,6 +756,15 @@ export function ManualClient({
         <div className="toast" role="status">
           {toast}
         </div>
+      )}
+
+      {shareOpen && data && (
+        <ShareSheet
+          data={data}
+          selectedWalk={selected}
+          selectedPoints={selectedPoints}
+          onClose={() => setShareOpen(false)}
+        />
       )}
 
       {modal === "add" && (

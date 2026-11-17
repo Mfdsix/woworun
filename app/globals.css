@@ -2100,3 +2100,77 @@ input.pin-slot.is-filled {
     min-height: calc(100dvh - 76px);
   }
 }
+
+/* ---------- Share composer ---------- */
+
+.share-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.92);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  overflow-y: auto;
+  display: flex;
+}
+
+.share-sheet {
+  width: 100%;
+  max-width: 520px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.share-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.share-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.share-canvas {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--wl-line);
+  border-radius: 12px;
+  background: #0b0b0b;
+  touch-action: none;
+}
+
+.share-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.share-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.share-slider {
+  flex: 1;
+  min-width: 160px;
+  accent-color: #ff5500;
+}
+
+.share-hint {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: #71717a;
+}
+
+.share-file {
+  display: none;
+}
