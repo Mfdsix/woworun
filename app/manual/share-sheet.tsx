@@ -272,7 +272,7 @@ export function ShareSheet({
       <div className="share-sheet">
         <div className="share-head">
           <div>
-            <span className="wl-kicker">SHARE</span>
+            <span className="wl-kicker">Share</span>
             <h2 className="share-title">
               {selectedWalk ? `Walk: ${selectedWalk.name}` : "Month overview"}
             </h2>
@@ -342,7 +342,7 @@ export function ShareSheet({
 
         {sticker && (
           <div className="share-row">
-            <span className="wl-kicker">STICKER SIZE</span>
+            <span className="wl-kicker">Sticker size</span>
             <input
               className="share-slider"
               type="range"

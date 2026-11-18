@@ -6,7 +6,7 @@ import { jakartaToday, monthKey } from "@/lib/strava/dates";
 import type { WalkSession } from "@/lib/strava/types";
 import { daysInMonth, monthGrid, monthLabel, type CalendarView } from "./calendar-utils";
 
-const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const WEEKDAY_SHORT = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTH_NAMES = [
   "January",
@@ -22,7 +22,7 @@ const MONTH_NAMES = [
   "November",
   "December",
 ];
-const MONTH_SHORT = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 type CalendarCardProps = {
   walks: WalkSession[];
@@ -39,12 +39,18 @@ type CalendarCardProps = {
 
 function pillStyle(totalKm: number, isSelected: boolean): CSSProperties {
   const ratio = Math.min(1, Math.max(0.25, (totalKm - 2.5) / 5));
-  const start = (0.72 + ratio * 0.28).toFixed(2);
-  const end = (0.58 + ratio * 0.34).toFixed(2);
-  const glow = isSelected ? "0.48" : (0.16 + ratio * 0.18).toFixed(2);
+  const alpha = (0.1 + ratio * 0.1).toFixed(2);
+  if (isSelected) {
+    return {
+      background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+      boxShadow: "0 2px 8px rgba(249, 115, 22, 0.25)",
+      color: "#1c1917",
+    };
+  }
   return {
-    background: `linear-gradient(135deg, rgba(255, 85, 0, ${start}) 0%, rgba(255, 138, 61, ${end}) 100%)`,
-    boxShadow: `${isSelected ? "0 0 0 2px rgba(255,255,255,0.8), " : ""}inset 0 1px 0 rgba(255,255,255,0.28), 0 4px 14px rgba(255,85,0,${glow})`,
+    background: `rgba(249, 115, 22, ${alpha})`,
+    border: "1px solid rgba(249, 115, 22, 0.22)",
+    color: "#ffedd5",
   };
 }
 
@@ -253,7 +259,7 @@ export function CalendarCard({
         <div className="cal-viewport">
           <div className="cal-spotlight" style={pillStyle(dayKmValue, false)}>
             <div>
-              <div className="cal-spotlight-kicker">{dayTitle(anchorDate).toUpperCase()}</div>
+              <div className="cal-spotlight-kicker">{dayTitle(anchorDate)}</div>
               <div className="cal-spotlight-km">{dayKmValue.toFixed(1)} km</div>
             </div>
             <div className="cal-spotlight-meta">
@@ -277,7 +283,7 @@ export function CalendarCard({
         <div className="cal-spotlight-ring">
           <div>
             <div className="cal-spotlight-kicker is-accent">
-              {isTodayCell ? "TODAY · REST OR PENDING" : "NO WALK LOGGED"}
+              {isTodayCell ? "Today · rest or pending" : "No walk logged"}
             </div>
             <div className="cal-spotlight-date">{anchorDate}</div>
           </div>
@@ -296,7 +302,7 @@ export function CalendarCard({
           <button className="wl-cal-btn" type="button" aria-label="Previous period" onClick={() => onMonthNav(-1)}>
             ‹
           </button>
-          <h2 className="wl-cal-month">{title.toUpperCase()}</h2>
+          <h2 className="wl-cal-month">{title}</h2>
           <button className="wl-cal-btn" type="button" aria-label="Next period" onClick={() => onMonthNav(1)}>
             ›
           </button>

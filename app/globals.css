@@ -1,10 +1,10 @@
 :root {
-  --bg: #0B0B0B;
-  --card: #151515;
-  --line: #2A2A2A;
-  --text: #F5F5F5;
-  --muted: #9A9A9A;
-  --accent: #FC5200;
+  --bg: #09090B;
+  --card: #121215;
+  --line: rgba(255, 255, 255, 0.07);
+  --text: #F4F4F5;
+  --muted: #8E8E98;
+  --accent: #F97316;
   --danger: #F87171;
   --amber: #FBBF24;
 }
@@ -39,6 +39,28 @@ input {
   color: inherit;
 }
 
+::selection {
+  background: rgba(249, 115, 22, 0.2);
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .screen {
   display: flex;
   flex-direction: column;
@@ -47,7 +69,7 @@ input {
   min-height: 100dvh;
   padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
   background:
-    radial-gradient(900px 420px at 50% -10%, rgba(252, 82, 0, 0.09), transparent 65%),
+    radial-gradient(900px 420px at 50% -10%, rgba(249, 115, 22, 0.055), transparent 65%),
     var(--bg);
 }
 
@@ -62,8 +84,7 @@ input {
 .brand {
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
   color: var(--muted);
 }
 
@@ -124,7 +145,14 @@ input {
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 
 .btn:disabled {
@@ -284,8 +312,8 @@ input {
 
 .panel {
   background: var(--card);
-  border: 1px solid #232323;
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -308,11 +336,11 @@ input {
   background:
     radial-gradient(
       620px 360px at 88% 6%,
-      rgba(252, 82, 0, 0.28),
-      rgba(252, 82, 0, 0.06) 48%,
-      rgba(252, 82, 0, 0) 72%
+      rgba(249, 115, 22, 0.085),
+      rgba(249, 115, 22, 0.02) 48%,
+      rgba(249, 115, 22, 0) 72%
     ),
-    linear-gradient(180deg, #171717 0%, #0f0f0f 100%);
+    #121215;
 }
 
 .overview-panel > :not(.hero-runner) {
@@ -327,7 +355,7 @@ input {
   height: 42%;
   width: auto;
   transform: translateY(-50%);
-  color: #fc5200;
+  color: #f97316;
   opacity: 0.05;
   pointer-events: none;
   z-index: 0;
@@ -342,7 +370,7 @@ input {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--accent), rgba(252, 82, 0, 0));
+  background: linear-gradient(90deg, var(--accent), rgba(249, 115, 22, 0));
 }
 
 .overview-detail {
@@ -440,8 +468,8 @@ input {
   padding: 5px 10px;
   border-radius: 999px;
   color: var(--accent);
-  background: rgba(252, 82, 0, 0.12);
-  border: 1px solid rgba(252, 82, 0, 0.28);
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.22);
 }
 
 .chart-head {
@@ -491,13 +519,16 @@ input {
 .bar {
   width: 100%;
   max-width: 34px;
-  border-radius: 6px 6px 2px 2px;
+  border-radius: 8px 8px 2px 2px;
   background: var(--line);
-  transition: height 160ms ease;
+  transition:
+    height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease;
 }
 
 .bar.is-latest {
-  background: linear-gradient(180deg, var(--accent), rgba(252, 82, 0, 0.35));
+  background: linear-gradient(180deg, #fb923c 0%, #ea580c 100%);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.15);
 }
 
 .bar-value {
@@ -621,8 +652,8 @@ input {
 
 .banner-ok {
   color: var(--accent);
-  background: rgba(252, 82, 0, 0.1);
-  border: 1px solid rgba(252, 82, 0, 0.25);
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.25);
 }
 
 .banner-warn {
@@ -917,7 +948,7 @@ input {
 }
 
 .paste-input:focus {
-  outline: 2px solid rgba(252, 82, 0, 0.45);
+  outline: 2px solid rgba(249, 115, 22, 0.45);
   outline-offset: 1px;
 }
 
@@ -964,7 +995,7 @@ input {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 10px 30px rgba(252, 82, 0, 0.35);
+  box-shadow: 0 10px 30px rgba(249, 115, 22, 0.22);
   z-index: 60;
 }
 
@@ -1074,7 +1105,7 @@ input {
   z-index: 85;
   max-width: min(92vw, 560px);
   padding: 9px 14px;
-  border: 1px solid rgba(252, 82, 0, 0.45);
+  border: 1px solid rgba(249, 115, 22, 0.45);
   border-radius: 999px;
   background: var(--card);
   color: var(--text);
@@ -1093,10 +1124,10 @@ body {
   --wl-bg: #09090b;
   --wl-panel: #121215;
   --wl-soft: #18181c;
-  --wl-line: #242429;
+  --wl-line: rgba(255, 255, 255, 0.06);
   --wl-text: #f4f4f5;
   --wl-muted: #a1a1aa;
-  --wl-accent: #ff5500;
+  --wl-accent: #f97316;
 
   min-height: 100dvh;
   width: 100%;
@@ -1136,9 +1167,9 @@ body {
 .wl-mark {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 85, 0, 0.35);
-  background: rgba(255, 85, 0, 0.15);
+  border-radius: 8px;
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  background: rgba(249, 115, 22, 0.1);
   color: var(--wl-accent);
   display: flex;
   align-items: center;
@@ -1159,11 +1190,10 @@ body {
 }
 
 .wl-kicker {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
   color: var(--wl-muted);
 }
 
@@ -1189,7 +1219,7 @@ body {
 }
 
 .wl-summary {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 11px;
   color: var(--wl-muted);
   white-space: nowrap;
@@ -1204,7 +1234,7 @@ body {
   border: 1px solid rgba(52, 211, 153, 0.25);
   background: rgba(52, 211, 153, 0.1);
   color: #34d399;
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 9.5px;
   font-weight: 500;
   white-space: nowrap;
@@ -1224,24 +1254,32 @@ body {
   gap: 4px;
   min-height: 30px;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: 10px;
   border: 1px solid transparent;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    opacity 0.18s ease,
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wl-btn:active {
+  transform: scale(0.98);
 }
 
 .wl-btn-accent {
   background: var(--wl-accent);
   color: #fff;
   border-color: var(--wl-accent);
-  box-shadow: 0 4px 14px rgba(255, 85, 0, 0.25);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.25);
 }
 
 .wl-btn-accent:hover {
-  background: #ff6a1f;
+  background: #fb923c;
 }
 
 .wl-btn-ghost {
@@ -1293,8 +1331,8 @@ body {
   gap: 12px;
   min-height: 340px;
   background:
-    radial-gradient(320px circle at 15% 18%, rgba(255, 85, 0, 0.18), transparent 72%),
-    linear-gradient(180deg, #141418 0%, #101013 100%);
+    radial-gradient(420px circle at 18% 22%, rgba(249, 115, 22, 0.085), transparent 65%),
+    #121215;
 }
 
 .wl-accent-line {
@@ -1303,7 +1341,7 @@ body {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #ff5500, #fb923c, transparent);
+  background: linear-gradient(90deg, #f97316, rgba(249, 115, 22, 0));
 }
 
 .wl-row {
@@ -1321,16 +1359,15 @@ body {
 }
 
 .wl-badge {
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 85, 0, 0.3);
-  background: rgba(255, 85, 0, 0.15);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  background: rgba(249, 115, 22, 0.09);
   color: var(--wl-accent);
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 8.5px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -1382,11 +1419,10 @@ body {
 }
 
 .wl-stat-label {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 8.5px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0;
   color: var(--wl-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -1394,7 +1430,7 @@ body {
 }
 
 .wl-stat-value {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1404,7 +1440,7 @@ body {
 }
 
 .wl-stat-value.is-accent {
-  color: #ff7733;
+  color: #fb923c;
 }
 
 .wl-substats {
@@ -1428,12 +1464,12 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  border-color: rgba(255, 85, 0, 0.3);
-  background: rgba(255, 85, 0, 0.07);
+  border-color: rgba(249, 115, 22, 0.22);
+  background: rgba(249, 115, 22, 0.07);
 }
 
 .wl-substat-value {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1441,7 +1477,7 @@ body {
 }
 
 .wl-peak-value {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 800;
   color: var(--wl-accent);
@@ -1461,7 +1497,8 @@ body {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: rgba(212, 212, 216, 0.85);
+  background: linear-gradient(90deg, #a1a1aa 0%, #fb923c 60%, #f97316 100%);
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .wl-chart {
@@ -1478,9 +1515,9 @@ body {
 }
 
 .wl-chart-avg {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 9.5px;
-  color: rgba(255, 85, 0, 0.9);
+  font-family: inherit;
+  font-size: 10px;
+  color: #fb923c;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1528,20 +1565,21 @@ body {
 .wl-bar {
   width: 100%;
   max-width: 34px;
-  border-radius: 4px 4px 1px 1px;
+  border-radius: 8px 8px 2px 2px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-bottom: 0;
+  transition: height 0.55s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s ease;
 }
 
 .wl-bar.is-latest {
-  background: linear-gradient(180deg, rgba(255, 85, 0, 0.85), rgba(255, 85, 0, 0.3));
-  border-color: rgba(255, 85, 0, 0.8);
-  box-shadow: 0 0 12px rgba(255, 85, 0, 0.28);
+  background: linear-gradient(180deg, #fb923c 0%, #ea580c 100%);
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.12);
 }
 
 .wl-bar-value {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 9px;
   color: var(--wl-muted);
   font-variant-numeric: tabular-nums;
@@ -1554,7 +1592,7 @@ body {
 }
 
 .wl-bar-date {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 8.5px;
   color: var(--wl-muted);
   white-space: nowrap;
@@ -1566,7 +1604,7 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1px dashed rgba(255, 85, 0, 0.4);
+  border-top: 1px dashed rgba(249, 115, 22, 0.4);
   pointer-events: none;
   z-index: 1;
 }
@@ -1599,7 +1637,7 @@ body {
   border: 1px solid var(--wl-line);
   background: var(--wl-bg);
   color: var(--wl-muted);
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 9.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1622,7 +1660,7 @@ body {
 }
 
 .wl-mono {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 11px;
   color: #d4d4d8;
   font-variant-numeric: tabular-nums;
@@ -1642,11 +1680,11 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 7px;
-  border-radius: 5px;
-  border: 1px solid rgba(255, 85, 0, 0.35);
-  background: rgba(255, 85, 0, 0.15);
-  color: var(--wl-accent);
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  background: rgba(249, 115, 22, 0.09);
+  color: #fed7aa;
   font-size: 10.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1679,7 +1717,7 @@ body {
   border: 1px solid var(--wl-line);
   background: var(--wl-bg);
   color: var(--wl-muted);
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
@@ -1731,7 +1769,7 @@ body {
 }
 
 .wl-recent-date {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 10px;
   color: var(--wl-muted);
   white-space: nowrap;
@@ -1743,7 +1781,7 @@ body {
   gap: 5px;
   flex-shrink: 0;
   color: var(--wl-muted);
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1773,10 +1811,9 @@ body {
   gap: 8px;
   padding: 2px 2px 0;
   color: #71717a;
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0;
   flex-shrink: 0;
 }
 
@@ -1811,7 +1848,6 @@ body {
   background: none;
   color: #a1a1aa;
   font: inherit;
-  text-transform: uppercase;
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
@@ -1908,10 +1944,10 @@ body {
 }
 
 .wl-field > span {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
   color: var(--wl-muted);
 }
 
@@ -1920,16 +1956,17 @@ body {
   min-height: 32px;
   padding: 6px 8px;
   border: 1px solid var(--wl-line);
-  border-radius: 6px;
+  border-radius: 10px;
   background: var(--wl-bg);
   color: #fff;
   font-family: inherit;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  transition: border-color 0.18s ease;
 }
 
 .wl-input:focus {
-  outline: 2px solid rgba(255, 85, 0, 0.4);
+  outline: 2px solid rgba(249, 115, 22, 0.4);
   outline-offset: 1px;
 }
 
@@ -2005,7 +2042,7 @@ input.pin-slot {
 input.pin-slot:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(252, 82, 0, 0.18);
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.18);
 }
 
 input.pin-slot.is-filled {
@@ -2036,11 +2073,11 @@ input.pin-slot.is-filled {
 
 .wl-home:hover {
   color: var(--wl-text);
-  border-color: rgba(255, 85, 0, 0.4);
+  border-color: rgba(249, 115, 22, 0.4);
 }
 
 .wl-home:focus-visible {
-  outline: 2px solid rgba(255, 85, 0, 0.45);
+  outline: 2px solid rgba(249, 115, 22, 0.45);
   outline-offset: 1px;
 }
 
@@ -2060,7 +2097,7 @@ input.pin-slot.is-filled {
 }
 
 .wl-detail-meta {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 10.5px;
   color: var(--wl-muted);
   font-variant-numeric: tabular-nums;
@@ -2082,12 +2119,12 @@ input.pin-slot.is-filled {
 }
 
 .wl-recent-row:focus-visible {
-  outline: 2px solid rgba(255, 85, 0, 0.45);
+  outline: 2px solid rgba(249, 115, 22, 0.45);
   outline-offset: -2px;
 }
 
 .wl-recent-row.is-selected {
-  background: rgba(255, 85, 0, 0.08);
+  background: rgba(249, 115, 22, 0.08);
   box-shadow: inset 2px 0 0 var(--wl-accent);
 }
 
@@ -2162,7 +2199,7 @@ input.pin-slot.is-filled {
 .share-slider {
   flex: 1;
   min-width: 160px;
-  accent-color: #ff5500;
+  accent-color: #f97316;
 }
 
 .share-hint {
@@ -2179,31 +2216,25 @@ input.pin-slot.is-filled {
 
 .wl-shell {
   background:
-    radial-gradient(480px circle at 85% 0%, rgba(255, 85, 0, 0.09), transparent 65%),
-    #0b0b0e;
+    radial-gradient(480px circle at 85% 0%, rgba(249, 115, 22, 0.06), transparent 65%),
+    #09090b;
 }
 
 .wl-card {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.032) 0%, rgba(255, 85, 0, 0.038) 55%, rgba(16, 16, 20, 0.85) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 16px 40px -16px rgba(0, 0, 0, 0.75);
+  background: #121215;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.6);
 }
 
 .wl-btn-accent {
-  background: linear-gradient(135deg, #ff5500 0%, #ff7a2f 100%);
+  background: #f97316;
   border-color: transparent;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 4px 16px rgba(255, 85, 0, 0.32);
+  box-shadow: 0 2px 10px rgba(249, 115, 22, 0.2);
 }
 
 .wl-btn-accent:hover {
-  background: linear-gradient(135deg, #ff6214 0%, #ff8945 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 6px 20px rgba(255, 85, 0, 0.42);
+  background: #fb923c;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.28);
 }
 
 .wl-btn-ghost {
@@ -2213,19 +2244,19 @@ input.pin-slot.is-filled {
 }
 
 .wl-modal {
-  background: #111115;
+  background: #121215;
 }
 
 .toast {
-  background: rgba(21, 21, 26, 0.95);
+  background: rgba(24, 24, 28, 0.95);
   border-color: rgba(255, 255, 255, 0.1);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
 
 .wl-shell ::-webkit-scrollbar {
-  width: 3px;
-  height: 3px;
+  width: 5px;
+  height: 5px;
 }
 
 .wl-shell ::-webkit-scrollbar-track {
@@ -2233,8 +2264,12 @@ input.pin-slot.is-filled {
 }
 
 .wl-shell ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
+}
+
+.wl-shell ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .cal-controls {
@@ -2253,6 +2288,77 @@ input.pin-slot.is-filled {
   width: 100%;
 }
 
+.cal-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.cal-spotlight {
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 100px;
+}
+
+.cal-spotlight-kicker {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: rgba(255, 237, 213, 0.85);
+}
+
+.cal-spotlight-kicker.is-accent {
+  color: #fb923c;
+}
+
+.cal-spotlight-km {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #fff;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-spotlight-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 11px;
+  color: rgba(255, 237, 213, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-spotlight-pace {
+  font-weight: 600;
+  color: #fff;
+}
+
+.cal-spotlight-ring {
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cal-spotlight-date {
+  font-family: inherit;
+  font-size: 12px;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+}
+
 .cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -2262,7 +2368,7 @@ input.pin-slot.is-filled {
 
 .cal-weekday {
   text-align: center;
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 9.5px;
   font-weight: 600;
   color: #71717a;
@@ -2315,10 +2421,11 @@ input.pin-slot.is-filled {
 }
 
 .cal-pill-km {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 8px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: inherit;
+  opacity: 0.78;
   line-height: 1;
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -2340,7 +2447,7 @@ input.pin-slot.is-filled {
   justify-content: center;
   color: #fff;
   cursor: pointer;
-  background: radial-gradient(circle at 50% 30%, rgba(255, 122, 47, 0.16), rgba(255, 85, 0, 0.04) 75%);
+  background: radial-gradient(circle at 50% 30%, rgba(251, 146, 60, 0.16), rgba(249, 115, 22, 0.04) 75%);
 }
 
 .cal-ring-cell::before {
@@ -2349,7 +2456,7 @@ input.pin-slot.is-filled {
   inset: 0;
   border-radius: 12px;
   padding: 1.5px;
-  background: linear-gradient(135deg, #ff5500 0%, #ffb067 100%);
+  background: linear-gradient(135deg, #f97316 0%, #fdba74 100%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -2380,11 +2487,11 @@ input.pin-slot.is-filled {
   border-radius: 50%;
   background: var(--wl-accent);
   margin-top: 3px;
-  box-shadow: 0 0 6px #ff5500;
+  box-shadow: 0 0 6px rgba(249, 115, 22, 0.5);
 }
 
 .cal-ring-sub {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 8.5px;
   color: rgba(253, 186, 116, 0.9);
   line-height: 1;
@@ -2420,7 +2527,7 @@ input.pin-slot.is-filled {
 }
 
 .cal-plain-cell.is-outside {
-  color: #3f3f46;
+  color: #52525b;
 }
 
 .cal-week-empty {
@@ -2436,7 +2543,7 @@ input.pin-slot.is-filled {
   color: #a1a1aa;
   background: rgba(255, 255, 255, 0.02);
   cursor: pointer;
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2456,8 +2563,8 @@ input.pin-slot.is-filled {
   display: inline-flex;
   align-items: center;
   padding: 2px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+  background: #09090b;
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
@@ -2465,10 +2572,10 @@ input.pin-slot.is-filled {
   position: absolute;
   top: 2px;
   bottom: 2px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.06));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  transition: left 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+  background: #18181c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: left 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
 
@@ -2497,7 +2604,7 @@ input.pin-slot.is-filled {
     90deg,
     rgba(255, 255, 255, 0.02) 0%,
     rgba(255, 255, 255, 0.09) 35%,
-    rgba(255, 85, 0, 0.16) 70%,
+    rgba(249, 115, 22, 0.16) 70%,
     rgba(255, 255, 255, 0.02) 100%
   );
 }
@@ -2523,14 +2630,14 @@ input.pin-slot.is-filled {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  background: linear-gradient(90deg, #ffffff 0%, #ffe2d4 65%, #ffae85 100%);
+  background: linear-gradient(90deg, #ffffff 0%, #ffedd5 65%, #fdba74 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .cal-summary-sub {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 11px;
   color: #a1a1aa;
   font-variant-numeric: tabular-nums;
@@ -2562,11 +2669,11 @@ input.pin-slot.is-filled {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #ff5500 0%, #ff9e5e 100%);
+  background: linear-gradient(90deg, #f97316 0%, #fb923c 100%);
 }
 
 .cal-consistency-label {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 10px;
   color: #a1a1aa;
   font-variant-numeric: tabular-nums;
@@ -2579,15 +2686,15 @@ input.pin-slot.is-filled {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 85, 0, 0.25);
-  color: #ffcfb3;
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  color: #fed7aa;
   font-size: 10px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: linear-gradient(90deg, rgba(255, 85, 0, 0.2) 0%, rgba(251, 146, 60, 0.08) 100%);
+  background: rgba(249, 115, 22, 0.09);
 }
 
 .wl-streak[aria-hidden] {
@@ -2642,7 +2749,7 @@ input.pin-slot.is-filled {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.05);
   color: #d4d4d8;
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
@@ -2652,17 +2759,17 @@ input.pin-slot.is-filled {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border: 1px solid rgba(255, 85, 0, 0.3);
+  border: 1px solid rgba(249, 115, 22, 0.22);
   border-radius: 999px;
-  background: rgba(255, 85, 0, 0.15);
+  background: rgba(249, 115, 22, 0.09);
   color: var(--wl-accent);
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 10px;
   cursor: pointer;
 }
 
 .wl-chip:hover {
-  background: rgba(255, 85, 0, 0.25);
+  background: rgba(249, 115, 22, 0.25);
 }
 
 .hist-list {
@@ -2684,7 +2791,7 @@ input.pin-slot.is-filled {
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: background 0.18s ease;
+  transition: background-color 0.2s ease;
 }
 
 .hist-row + .hist-row {
@@ -2692,15 +2799,15 @@ input.pin-slot.is-filled {
 }
 
 .hist-row:hover {
-  background: linear-gradient(90deg, rgba(255, 85, 0, 0.1) 0%, rgba(255, 138, 61, 0.02) 65%, transparent 100%);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .hist-row.is-active {
-  background: linear-gradient(90deg, rgba(255, 85, 0, 0.18) 0%, rgba(255, 138, 61, 0.04) 75%, transparent 100%);
+  background: rgba(249, 115, 22, 0.08);
 }
 
 .hist-row:focus-visible {
-  outline: 2px solid rgba(255, 85, 0, 0.45);
+  outline: 2px solid rgba(249, 115, 22, 0.45);
   outline-offset: -2px;
 }
 
@@ -2721,7 +2828,7 @@ input.pin-slot.is-filled {
 
 .hist-dot.is-latest {
   background: var(--wl-accent);
-  box-shadow: 0 0 8px #ff5500;
+  box-shadow: 0 0 6px rgba(249, 115, 22, 0.45);
 }
 
 .hist-name {
@@ -2734,7 +2841,7 @@ input.pin-slot.is-filled {
 }
 
 .hist-date {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 11px;
   color: #71717a;
   flex-shrink: 0;
@@ -2746,7 +2853,7 @@ input.pin-slot.is-filled {
   gap: 5px;
   flex-shrink: 0;
   color: #a1a1aa;
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: inherit;
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -2785,11 +2892,10 @@ input.pin-slot.is-filled {
 }
 
 .wl-cal-month {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--wl-text);
   white-space: nowrap;
   overflow: hidden;

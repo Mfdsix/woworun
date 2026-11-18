@@ -70,8 +70,8 @@ const PANEL = "#121215";
 const LINE = "rgba(255,255,255,0.08)";
 const TEXT = "#f4f4f5";
 const MUTED = "#a1a1aa";
-const ACCENT = "#ff5500";
-const PALE_ACCENT = "#ff7733";
+const ACCENT = "#f97316";
+const PALE_ACCENT = "#fb923c";
 
 function roundRect(
   ctx: CanvasRenderingContext2D,

@@ -151,7 +151,7 @@ function Chart({ data }: { data: DashboardData }) {
   return (
     <div className="wl-chart">
       <div className="wl-chart-head">
-        <span className="wl-kicker">LAST 6 WALKS</span>
+        <span className="wl-kicker">Last 6 walks</span>
         <span className="wl-chart-avg">avg {formatKm(avg)} km</span>
       </div>
       <div className="wl-chart-body">
@@ -550,7 +550,7 @@ export function ManualClient({
 
       {!data || !month ? (
         <section className="wl-empty">
-          <span className="wl-kicker">NO ACTIVITIES YET</span>
+          <span className="wl-kicker">No activities yet</span>
           <h2 className="wl-empty-title">Add your first walk</h2>
           <p className="wl-empty-copy">
             Quick add one walk, or paste rows from the activity table. Entries are saved to your
@@ -574,7 +574,7 @@ export function ManualClient({
               <>
                 <div className="wl-row">
                   <div className="wl-row-left">
-                    <span className="wl-kicker">ACTIVITY DETAIL</span>
+                    <span className="wl-kicker">Activity detail</span>
                     <span className="wl-badge">{formatShortDate(selected.startLocal)}</span>
                   </div>
                   <div className="wl-actions">
@@ -609,25 +609,25 @@ export function ManualClient({
                   </div>
 
                   <div className="wl-stats">
-                    <StatCard label="DURATION" value={formatDuration(selected.movingTimeS)} />
+                    <StatCard label="Duration" value={formatDuration(selected.movingTimeS)} />
                     <StatCard
-                      label="PACE"
+                      label="Pace"
                       value={`${formatPace(selected.movingTimeS / (selected.distanceM / 1000))}/km`}
                       accent
                     />
-                    <StatCard label="START" value={selected.startLocal.slice(11, 16)} />
+                    <StatCard label="Start" value={selected.startLocal.slice(11, 16)} />
                   </div>
 
                   <div className="wl-substats">
                     <div className="wl-substat">
-                      <span className="wl-stat-label">VS AVG / WALK</span>
+                      <span className="wl-stat-label">vs avg / walk</span>
                       <span className="wl-substat-value">
                         {selectedDelta >= 0 ? "+" : "-"}
                         {formatKm(Math.abs(selectedDelta))} km
                       </span>
                     </div>
                     <div className="wl-substat is-peak">
-                      <span className="wl-stat-label">POINTS</span>
+                      <span className="wl-stat-label">Points</span>
                       <span className="wl-peak-value">+{selectedPoints} pts</span>
                     </div>
                   </div>
@@ -641,8 +641,8 @@ export function ManualClient({
               <>
                 <div className="wl-row">
                   <div className="wl-row-left">
-                    <span className="wl-kicker">{month.label.toUpperCase()}</span>
-                    <span className="wl-badge">ACTIVE MONTH</span>
+                    <span className="wl-kicker">{month.label}</span>
+                    <span className="wl-badge">Active month</span>
                   </div>
                   <div className="wl-actions">
                     <button
@@ -666,10 +666,10 @@ export function ManualClient({
                   </div>
 
                   <div className="wl-stats">
-                    <StatCard label="WALKS" value={String(month.walkCount)} />
-                    <StatCard label="DURATION" value={formatDuration(month.movingTimeS)} />
+                    <StatCard label="Walks" value={String(month.walkCount)} />
+                    <StatCard label="Duration" value={formatDuration(month.movingTimeS)} />
                     <StatCard
-                      label="AVG PACE"
+                      label="Avg pace"
                       value={`${formatPace(month.avgPaceSecPerKm)}/km`}
                       accent
                     />
@@ -678,7 +678,7 @@ export function ManualClient({
                   <div className="wl-substats">
                     <div className="wl-substat">
                       <div className="wl-row">
-                        <span className="wl-stat-label">AVG / WALK</span>
+                        <span className="wl-stat-label">Avg / walk</span>
                         <span className="wl-substat-value">{formatKm(avgWalk)} km</span>
                       </div>
                       <div className="wl-avg-track">
@@ -686,7 +686,7 @@ export function ManualClient({
                       </div>
                     </div>
                     <div className="wl-substat is-peak">
-                      <span className="wl-stat-label">PEAK</span>
+                      <span className="wl-stat-label">Peak</span>
                       <span className="wl-peak-value">{formatKm(longest)} km</span>
                     </div>
                   </div>
@@ -714,7 +714,7 @@ export function ManualClient({
             <section className="wl-card wl-history">
               <div className="hist-head">
                 <div className="hist-head-left">
-                  <span className="wl-kicker">HISTORY</span>
+                  <span className="wl-kicker">History</span>
                   <span className="wl-count">{historyWalks.length}</span>
                   {selectedDate && (
                     <button className="wl-chip" type="button" onClick={() => setSelectedDate(null)}>
@@ -722,7 +722,7 @@ export function ManualClient({
                     </button>
                   )}
                 </div>
-                <span className="wl-kicker">DIST / TIME · PACE</span>
+                <span className="wl-kicker">Dist · Time · Pace</span>
               </div>
               <div className="hist-list">
                 {historyWalks.length === 0 ? (
@@ -767,14 +767,14 @@ export function ManualClient({
 
       <footer className="wl-footer">
         <div className="wl-footer-left">
-          <span>MANUAL</span>
+          <span>Manual</span>
           <span className="wl-sep">·</span>
-          <span className="wl-synced-text">PIN SYNCED</span>
+          <span className="wl-synced-text">PIN synced</span>
           <span className="wl-sep">·</span>
-          <a href="/strava">STRAVA</a>
+          <a href="/strava">Strava</a>
         </div>
         <div className="wl-footer-right">
-          <span>{walkCount} WALKS TOTAL</span>
+          <span>{walkCount} walks total</span>
           <span className="wl-sep">·</span>
           <button className="wl-link" type="button" onClick={() => setModal("clear")}>
             Clear all
@@ -807,7 +807,7 @@ export function ManualClient({
           <div className="modal wl-modal" role="dialog" aria-modal="true" aria-labelledby="add-title">
             <div className="modal-head">
               <div>
-                <p className="wl-kicker">ADD ACTIVITY</p>
+                <p className="wl-kicker">Add activity</p>
                 <h2 className="heading" id="add-title">
                   Add Walk
                 </h2>
@@ -978,7 +978,7 @@ export function ManualClient({
           <div className="modal wl-modal wl-modal-sm" role="dialog" aria-modal="true">
             <div className="modal-head">
               <div>
-                <p className="wl-kicker">DANGER ZONE</p>
+                <p className="wl-kicker">Danger zone</p>
                 <h2 className="heading">Clear or restore</h2>
               </div>
             </div>
