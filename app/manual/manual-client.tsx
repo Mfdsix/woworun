@@ -190,9 +190,7 @@ export function ManualClient({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string | null>(
-    () => walks[0]?.startLocal.slice(0, 10) ?? null,
-  );
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [calView, setCalView] = useState<CalendarView>("month");
   const [anchorDate, setAnchorDate] = useState(() => jakartaToday());
@@ -212,10 +210,6 @@ export function ManualClient({
   const routesRef = useRef(routes);
   routesRef.current = routes;
   const [routeBusy, setRouteBusy] = useState(false);
-
-  function fallbackDate(): string | null {
-    return walks[0]?.startLocal.slice(0, 10) ?? null;
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -409,12 +403,12 @@ export function ManualClient({
   }
 
   function toggleDate(date: string) {
-    setSelectedDate((current) => (current === date ? fallbackDate() : date));
+    setSelectedDate((current) => (current === date ? null : date));
   }
 
   function handleToday() {
     setAnchorDate(jakartaToday());
-    setSelectedDate(fallbackDate());
+    setSelectedDate(null);
   }
 
   function handleMonthNav(delta: number) {
@@ -712,9 +706,9 @@ export function ManualClient({
                     <button
                       className="wl-home"
                       type="button"
-                      aria-label="Back to latest walk"
-                      title="Back to latest walk"
-                      onClick={() => setSelectedDate(fallbackDate())}
+                      aria-label="Back to month overview"
+                      title="Back to month overview"
+                      onClick={() => setSelectedDate(null)}
                     >
                       <HomeIcon />
                     </button>
@@ -779,22 +773,22 @@ export function ManualClient({
                   </p>
                 </div>
               </>
-            ) : (
+            ) : selectedDate ? (
               <div className="wl-detail-main">
                 <div className="wl-row">
                   <div className="wl-row-left">
                     <span className="wl-kicker">No walk logged</span>
                     <span className="wl-badge">
-                      {formatShortDate(selectedDate ?? jakartaToday())}
+                      {formatShortDate(selectedDate)}
                     </span>
                   </div>
                   <div className="wl-actions">
                     <button
                       className="wl-home"
                       type="button"
-                      aria-label="Back to latest walk"
-                      title="Back to latest walk"
-                      onClick={() => setSelectedDate(fallbackDate())}
+                      aria-label="Back to month overview"
+                      title="Back to month overview"
+                      onClick={() => setSelectedDate(null)}
                     >
                       <HomeIcon />
                     </button>
@@ -821,14 +815,71 @@ export function ManualClient({
                   <button
                     className="wl-btn wl-btn-ghost"
                     type="button"
-                    onClick={() => setSelectedDate(fallbackDate())}
+                    onClick={() => setSelectedDate(null)}
                   >
-                    Back to latest walk
+                    Back to month overview
                   </button>
                 </div>
 
                 <p className="wl-detail-hint">
                   No walk recorded on this date. Log one, or pick a day with a walk.
+                </p>
+              </div>
+            ) : (
+              <div className="wl-detail-main">
+                <div className="wl-row">
+                  <div className="wl-row-left">
+                    <span className="wl-kicker">{month.label}</span>
+                    <span className="wl-badge">Active month</span>
+                  </div>
+                  <div className="wl-actions">
+                    <button
+                      className="wl-home"
+                      type="button"
+                      aria-label="Share image"
+                      onClick={() => setShareOpen(true)}
+                    >
+                      <ShareIcon />
+                    </button>
+                    <span className="wl-summary wl-summary-compact">
+                      {walkCount} walks · {points} pts
+                    </span>
+                  </div>
+                </div>
+
+                <div className="wl-hero-line">
+                  <span className="wl-hero-number">{formatKm(month.distanceM)}</span>
+                  <span className="wl-unit">km</span>
+                </div>
+
+                <div className="wl-stats">
+                  <StatCard label="Walks" value={String(month.walkCount)} />
+                  <StatCard label="Duration" value={formatDuration(month.movingTimeS)} />
+                  <StatCard
+                    label="Avg pace"
+                    value={`${formatPace(month.avgPaceSecPerKm)}/km`}
+                    accent
+                  />
+                </div>
+
+                <div className="wl-substats">
+                  <div className="wl-substat">
+                    <div className="wl-row">
+                      <span className="wl-stat-label">Avg / walk</span>
+                      <span className="wl-substat-value">{formatKm(avgWalk)} km</span>
+                    </div>
+                    <div className="wl-avg-track">
+                      <span style={{ width: `${avgBarWidth}%` }} />
+                    </div>
+                  </div>
+                  <div className="wl-substat is-peak">
+                    <span className="wl-stat-label">Peak</span>
+                    <span className="wl-peak-value">{formatKm(longest)} km</span>
+                  </div>
+                </div>
+
+                <p className="wl-detail-hint">
+                  Pick a day in the calendar or a row in history to see its detail.
                 </p>
               </div>
             )}
@@ -857,7 +908,7 @@ export function ManualClient({
                     <button
                       className="wl-chip"
                       type="button"
-                      onClick={() => setSelectedDate(fallbackDate())}
+                      onClick={() => setSelectedDate(null)}
                     >
                       {formatShortDate(selectedDate)} ×
                     </button>
@@ -878,7 +929,7 @@ export function ManualClient({
                         className={sortBy === key ? "is-active" : ""}
                         onClick={() => {
                           setSortBy(key);
-                          setSelectedDate(fallbackDate());
+                          setSelectedDate(null);
                         }}
                       >
                         {label}
@@ -897,7 +948,7 @@ export function ManualClient({
                       <button
                         className="wl-btn wl-btn-ghost"
                         type="button"
-                        onClick={() => setSelectedDate(fallbackDate())}
+                        onClick={() => setSelectedDate(null)}
                       >
                         Show all {walkCount} walks
                       </button>
