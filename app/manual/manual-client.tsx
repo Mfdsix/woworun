@@ -20,6 +20,9 @@ import { addDays, jakartaToday } from "@/lib/strava/dates";
 import type { DashboardData, WalkSession } from "@/lib/strava/types";
 import { CalendarCard } from "./calendar-card";
 import { RoutePreview, RouteExplorer, type RoutePoint } from "./route-map";
+import { useMediaQuery } from "@/lib/use-media-query";
+import { HistoryList, type HistorySort } from "./history-list";
+import { MobileNav } from "./mobile-nav";
 import {
   addMonths,
   filterWalksByRange,
@@ -211,6 +214,10 @@ export function ManualClient({
   routesRef.current = routes;
   const [routeBusy, setRouteBusy] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [overlayHistory, setOverlayHistory] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 599px)");
 
   useEffect(() => {
     let cancelled = false;
@@ -605,6 +612,72 @@ export function ManualClient({
   const selectedDelta = selected ? selected.distanceM - avgWalk : 0;
   const selectedRoute = selected ? (routes[selected.id] ?? null) : null;
 
+  // Swipe navigation between activities (mobile home).
+  const navWalks = useMemo(
+    () => [...walks].sort((a, b) => (a.startLocal < b.startLocal ? 1 : -1)),
+    [walks],
+  );
+  const navIndex = selected ? navWalks.findIndex((w) => w.id === selected.id) : -1;
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const dragMode = useRef<"idle" | "horizontal" | "vertical">("idle");
+  const suppressClickRef = useRef(false);
+
+  function handleSwipeNavigate(dir: 1 | -1) {
+    const nextIndex = navIndex + dir;
+    if (nextIndex < -1 || nextIndex >= navWalks.length) return; // boundary
+    if (nextIndex === -1) {
+      setSelectedDate(null); // back to month overview
+      return;
+    }
+    setSelectedDate(navWalks[nextIndex].startLocal.slice(0, 10));
+  }
+
+  function onCardPointerDown(event: React.PointerEvent) {
+    if (!isMobile) return;
+    dragStart.current = { x: event.clientX, y: event.clientY };
+    dragMode.current = "idle";
+    setDragging(true);
+  }
+
+  function onCardPointerMove(event: React.PointerEvent) {
+    if (!dragging) return;
+    const dx = event.clientX - dragStart.current.x;
+    const dy = event.clientY - dragStart.current.y;
+    if (dragMode.current === "idle") {
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+      dragMode.current = Math.abs(dx) > Math.abs(dy) * 1.2 ? "horizontal" : "vertical";
+      if (dragMode.current === "vertical") {
+        setDragging(false);
+        return;
+      }
+    }
+    if (dragMode.current !== "horizontal") return;
+    const dir = dx < 0 ? 1 : -1;
+    const candidate = navIndex + dir;
+    const inRange = candidate >= -1 && candidate < navWalks.length;
+    suppressClickRef.current = true;
+    // Boundary resistance: past the ends the card only moves a quarter.
+    setDragX(inRange ? dx : dx * 0.22);
+  }
+
+  function onCardPointerUp() {
+    if (!dragging) return;
+    setDragging(false);
+    if (dragMode.current === "horizontal" && Math.abs(dragX) > 64) {
+      handleSwipeNavigate(dragX < 0 ? 1 : -1);
+    }
+    setDragX(0);
+    dragMode.current = "idle";
+  }
+
+  function onCardPointerCancel() {
+    setDragging(false);
+    setDragX(0);
+    dragMode.current = "idle";
+  }
+
   useEffect(() => {
     const id = selected?.id;
     if (!id) return;
@@ -614,6 +687,7 @@ export function ManualClient({
 
   return (
     <div className="wl-shell">
+      {!isMobile && (
       <header className="wl-topbar">
         <div className="wl-brand">
           <span className="wl-mark">
@@ -643,6 +717,7 @@ export function ManualClient({
           </form>
         </div>
       </header>
+      )}
 
       {!data || !month ? (
         <section className="wl-empty">
@@ -663,7 +738,22 @@ export function ManualClient({
         </section>
       ) : (
         <main className="wl-main">
-          <section className="wl-hero" ref={heroRef}>
+          <section
+            className={`wl-hero${dragging && Math.abs(dragX) > 4 ? " is-swiping" : ""}`}
+            ref={heroRef}
+            style={isMobile ? { transform: `translateX(${dragX}px)` } : undefined}
+            onPointerDown={onCardPointerDown}
+            onPointerMove={onCardPointerMove}
+            onPointerUp={onCardPointerUp}
+            onPointerCancel={onCardPointerCancel}
+            onClickCapture={(event) => {
+              if (suppressClickRef.current) {
+                event.stopPropagation();
+                event.preventDefault();
+                suppressClickRef.current = false;
+              }
+            }}
+          >
             <div className="wl-accent-line" />
 
             {selected ? (
@@ -672,6 +762,11 @@ export function ManualClient({
                   <div className="wl-row-left">
                     <span className="wl-kicker">Activity detail</span>
                     <span className="wl-badge">{formatShortDate(selected.startLocal)}</span>
+                    {isMobile && navWalks.length > 0 && (
+                      <span className="wl-nav-count">
+                        {navIndex + 1} / {navWalks.length}
+                      </span>
+                    )}
                   </div>
                   <div className="wl-actions">
                     <button
@@ -889,6 +984,7 @@ export function ManualClient({
             )}
           </section>
 
+          {!isMobile && (
           <div className="wl-side">
             <CalendarCard
               walks={walks}
@@ -904,89 +1000,25 @@ export function ManualClient({
             />
 
             <section className="wl-card wl-history">
-              <div className="hist-head">
-                <div className="hist-head-left">
-                  <span className="wl-kicker">History</span>
-                  <span className="wl-count">{historyWalks.length}</span>
-                  {selectedDate && (
-                    <button
-                      className="wl-chip"
-                      type="button"
-                      onClick={() => setSelectedDate(null)}
-                    >
-                      {formatShortDate(selectedDate)} ×
-                    </button>
-                  )}
-                </div>
-                <div className="hist-sort">
-                  {(
-                    [
-                      ["distance", "Dist"],
-                      ["duration", "Time"],
-                      ["pace", "Pace"],
-                    ] as const
-                  ).map(([key, label], index) => (
-                    <span key={key} className="inline-flex items-center gap-1.5">
-                      {index > 0 && <span>·</span>}
-                      <button
-                        type="button"
-                        className={sortBy === key ? "is-active" : ""}
-                        onClick={() => {
-                          setSortBy(key);
-                          setSelectedDate(null);
-                        }}
-                      >
-                        {label}
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="hist-list">
-                {historyWalks.length === 0 ? (
-                  <div className="hist-empty">
-                    <p className="wl-empty-note">
-                      {selectedDate ? "No walk logged on this date." : "No walks yet."}
-                    </p>
-                    {selectedDate && (
-                      <button
-                        className="wl-btn wl-btn-ghost"
-                        type="button"
-                        onClick={() => setSelectedDate(null)}
-                      >
-                        Show all {walkCount} walks
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  historyWalks.map((walk, index) => (
-                    <button
-                      className={`hist-row${selectedDate === walk.startLocal.slice(0, 10) ? " is-active" : ""}`}
-                      key={walk.id}
-                      type="button"
-                      onClick={() => toggleDate(walk.startLocal.slice(0, 10))}
-                    >
-                      <div className="hist-main">
-                        <span className={`hist-dot${index === 0 && !selectedDate ? " is-latest" : ""}`} />
-                        <span className="hist-name">{walk.name}</span>
-                        <span className="hist-date">{formatShortDate(walk.startLocal)}</span>
-                      </div>
-                      <div className="hist-stats">
-                        <span className="hist-km">{formatKm(walk.distanceM)} km</span>
-                        <span className="hist-sep">/</span>
-                        <span className="hist-duration">{formatDuration(walk.movingTimeS)}</span>
-                        <span className="hist-sep">·</span>
-                        <span>{formatPace(walk.movingTimeS / (walk.distanceM / 1000))}</span>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
+              <HistoryList
+                walks={historyWalks}
+                selectedDate={selectedDate}
+                walkCount={walkCount}
+                sortBy={sortBy}
+                onSort={(key) => {
+                  setSortBy(key);
+                  setSelectedDate(null);
+                }}
+                onToggleDate={toggleDate}
+                onShowAll={() => setSelectedDate(null)}
+              />
             </section>
           </div>
+          )}
         </main>
       )}
 
+      {!isMobile && (
       <footer className="wl-footer">
         <div className="wl-footer-left">
           <span>Manual</span>
@@ -1003,6 +1035,139 @@ export function ManualClient({
           </button>
         </div>
       </footer>
+      )}
+
+      {isMobile && (
+        <MobileNav
+          open={menuOpen}
+          walkCount={walkCount}
+          points={points}
+          onToggle={() => setMenuOpen((current) => !current)}
+          onHome={() => {
+            setMenuOpen(false);
+            setSelectedDate(null);
+          }}
+          onCalendar={() => {
+            setMenuOpen(false);
+            setOverlayHistory(false);
+            setCalendarOpen(true);
+          }}
+          onAdd={() => {
+            setMenuOpen(false);
+            openAdd({ tab: "quick" });
+          }}
+          onClear={() => {
+            setMenuOpen(false);
+            setModal("clear");
+          }}
+          onClose={() => setMenuOpen(false)}
+        />
+      )}
+
+      {isMobile && calendarOpen && (
+        <div className="mobile-calendar">
+          <div className="mobile-overlay-head">
+            {overlayHistory && (
+              <button
+                className="wl-home"
+                type="button"
+                aria-label="Back to calendar"
+                onClick={() => {
+                  setSelectedDate(null);
+                  setOverlayHistory(false);
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            )}
+            <span className="wl-kicker">{overlayHistory ? "History" : "Calendar"}</span>
+            <button
+              className="wl-home"
+              type="button"
+              aria-label="Close"
+              onClick={() => {
+                setCalendarOpen(false);
+                setOverlayHistory(false);
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {overlayHistory && selectedDate ? (
+            historyWalks.length > 0 ? (
+              <section className="wl-card wl-history mobile-history">
+                <HistoryList
+                  walks={historyWalks}
+                  selectedDate={selectedDate}
+                  walkCount={walkCount}
+                  sortBy={sortBy}
+                  onSort={setSortBy}
+                  onToggleDate={toggleDate}
+                  onShowAll={() => {
+                    setSelectedDate(null);
+                    setOverlayHistory(false);
+                  }}
+                  onRowSelect={() => {
+                    setCalendarOpen(false);
+                    setOverlayHistory(false);
+                  }}
+                />
+              </section>
+            ) : (
+              <section className="wl-card mobile-history-empty">
+                <p className="wl-empty-note">
+                  No walk logged on {formatShortDate(selectedDate)}.
+                </p>
+                <div className="wl-actions">
+                  <button
+                    className="wl-btn wl-btn-accent"
+                    type="button"
+                    onClick={() => {
+                      setCalendarOpen(false);
+                      setOverlayHistory(false);
+                      openAdd({ date: selectedDate });
+                    }}
+                  >
+                    + Log this day
+                  </button>
+                  <button
+                    className="wl-btn wl-btn-ghost"
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(null);
+                      setOverlayHistory(false);
+                    }}
+                  >
+                    Back to calendar
+                  </button>
+                </div>
+              </section>
+            )
+          ) : (
+            <CalendarCard
+              walks={walks}
+              view={calView}
+              anchorDate={anchorDate}
+              selectedDate={selectedDate}
+              streak={data?.records.fiveKStreak ?? 0}
+              onSelectDate={(date) => {
+                const wasSelected = selectedDate === date;
+                toggleDate(date);
+                setOverlayHistory(!wasSelected);
+              }}
+              onViewChange={setCalView}
+              onMonthNav={handleMonthNav}
+              onToday={handleToday}
+              onAddForDate={(date) => openAdd({ date })}
+            />
+          )}
+        </div>
+      )}
 
       {toast && (
         <div className="toast" role="status">
