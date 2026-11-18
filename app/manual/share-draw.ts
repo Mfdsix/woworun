@@ -1,5 +1,4 @@
 import type { DashboardData, WalkSession } from "@/lib/strava/types";
-import { trackDistanceM } from "@/lib/gpx";
 import type { RoutePoint } from "./route-map";
 
 export type ShareFormat = "4:5" | "9:16";
@@ -18,17 +17,6 @@ export type ShareStickerLayer = {
   scale: number;
 };
 
-export type RouteLayer = {
-  points: RoutePoint[];
-  /** center position as a fraction of the canvas */
-  cx: number;
-  cy: number;
-  /** panel width as a fraction of the canvas width */
-  scale: number;
-  /** font family for the km label, injected by the drawer */
-  labelFont?: string;
-};
-
 export type ShareFonts = { sans: string; mono: string };
 
 export type ShareDrawOptions = {
@@ -40,7 +28,7 @@ export type ShareDrawOptions = {
   photo: HTMLImageElement | null;
   sticker: ShareStickerLayer | null;
   fonts: ShareFonts;
-  route: RouteLayer | null;
+  route: RoutePoint[] | null;
 };
 
 export function shareCanvasSize(format: ShareFormat): { width: number; height: number } {
@@ -79,19 +67,7 @@ export function stickerRect(
   return { x, y, width, height };
 }
 
-export const ROUTE_PANEL_ASPECT = 0.62;
-
-export function routeRect(
-  params: { canvasWidth: number; canvasHeight: number; scale: number; cx: number; cy: number },
-): { x: number; y: number; width: number; height: number } {
-  const width = params.scale * params.canvasWidth;
-  const height = width * ROUTE_PANEL_ASPECT;
-  const x = params.cx * params.canvasWidth - width / 2;
-  const y = params.cy * params.canvasHeight - height / 2;
-  return { x, y, width, height };
-}
-
-const BG = "#09090b";
+const BG = "#0b0b0c";
 const LINE = "rgba(255,255,255,0.08)";
 const TEXT = "#f4f4f5";
 const MUTED = "#a1a1aa";
@@ -169,71 +145,44 @@ function projectRoute(
   }));
 }
 
-function drawRoutePanel(
+function drawRouteWatermark(
   ctx: CanvasRenderingContext2D,
-  layer: RouteLayer,
-  canvasWidth: number,
-  canvasHeight: number,
+  points: RoutePoint[],
+  width: number,
+  height: number,
+  cardY: number,
 ): void {
-  const rect = routeRect({
-    canvasWidth,
-    canvasHeight,
-    scale: layer.scale,
-    cx: layer.cx,
-    cy: layer.cy,
-  });
-  const r = Math.min(28, rect.width / 8);
-
-  ctx.save();
-  ctx.fillStyle = "rgba(13,13,16,0.82)";
-  roundRect(ctx, rect.x, rect.y, rect.width, rect.height, r);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.14)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  const projected = projectRoute(
-    layer.points,
-    rect.x,
-    rect.y,
-    rect.width,
-    rect.height,
-    Math.max(30, rect.width * 0.09),
-  );
+  // Gray watermark route, slightly smaller so it breathes above the card.
+  const x = width * 0.14;
+  const y = Math.max(72, height * 0.06);
+  const w = width * 0.72;
+  const h = Math.max((cardY - y) * 0.72, height * 0.16);
+  const projected = projectRoute(points, x, y, w, h, Math.min(w, h) * 0.12);
   const path = projected
     .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
     .join(" ");
 
+  ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "rgba(255,255,255,0.14)";
-  ctx.lineWidth = 12;
-  ctx.stroke(new Path2D(path));
 
-  ctx.shadowColor = "rgba(252,76,2,0.4)";
-  ctx.shadowBlur = 14;
-  ctx.strokeStyle = ACCENT;
-  ctx.lineWidth = 7;
+  // Soft gray under-glow, then the watermark track itself.
+  ctx.strokeStyle = "rgba(160, 160, 166, 0.16)";
+  ctx.lineWidth = 22;
   ctx.stroke(new Path2D(path));
-  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(196, 196, 202, 0.34)";
+  ctx.lineWidth = 10;
+  ctx.stroke(new Path2D(path));
 
   const start = projected[0];
   const end = projected[projected.length - 1];
-  ctx.fillStyle = TEXT;
+  ctx.fillStyle = "rgba(196, 196, 202, 0.42)";
   ctx.beginPath();
   ctx.arc(start.x, start.y, 8, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = ACCENT;
   ctx.beginPath();
-  ctx.arc(end.x, end.y, 9, 0, Math.PI * 2);
+  ctx.arc(end.x, end.y, 8, 0, Math.PI * 2);
   ctx.fill();
-
-  ctx.font = `500 24px ${layer.labelFont ?? "sans-serif"}`;
-  ctx.fillStyle = MUTED;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  const km = (trackDistanceM(layer.points) / 1000).toFixed(1);
-  ctx.fillText(`${km} km`, rect.x + 22, rect.y + rect.height - 20);
   ctx.restore();
 }
 
@@ -258,7 +207,6 @@ export function drawShareImage(
     overlay.addColorStop(1, "rgba(9,9,11,0.8)");
     ctx.fillStyle = overlay;
     ctx.fillRect(0, 0, width, height);
-    drawText(ctx, "WALK LOG", 48, 64, { size: 30, weight: 700, family: mono, color: "#e4e4e7" });
   } else {
     const bg = ctx.createLinearGradient(0, 0, 0, height);
     bg.addColorStop(0, "#18181c");
@@ -277,6 +225,11 @@ export function drawShareImage(
     glow.addColorStop(1, "rgba(252,76,2,0)");
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
+  }
+
+  // Gray route watermark behind everything.
+  if (route && route.length >= 2) {
+    drawRouteWatermark(ctx, route, width, height, height - 52 - 470);
   }
 
   // Compact glass card pinned to the bottom.
@@ -300,16 +253,26 @@ export function drawShareImage(
   ctx.fillRect(cardX, cardY, cardW, 5);
 
   const isWalk = Boolean(selectedWalk);
-  const label = isWalk
-    ? "WALK LOG · WALK DETAIL"
-    : `WALK LOG · ${(data.month.label ?? "").toUpperCase()}`;
 
-  const kickerY = cardY + 74;
-  drawText(ctx, label, cardX + p, kickerY, { size: 26, weight: 700, family: mono, color: MUTED });
+  // Card kicker = the activity title (walk) or the month (overview).
+  const kicker = isWalk && selectedWalk ? selectedWalk.name : data.month.label ?? "";
+  const kickerMaxWidth = cardW - 2 * p - 150;
+  let kickerSize = 30;
+  while (kickerSize > 20) {
+    ctx.font = `700 ${kickerSize}px ${mono}`;
+    if (ctx.measureText(kicker).width <= kickerMaxWidth) break;
+    kickerSize -= 2;
+  }
+  drawText(ctx, kicker, cardX + p, cardY + 74, {
+    size: kickerSize,
+    weight: 700,
+    family: mono,
+    color: TEXT,
+  });
   const contextText = isWalk && selectedWalk
-    ? shortDate(selectedWalk.startLocal)
+    ? `${shortDate(selectedWalk.startLocal)} · ${selectedWalk.startLocal.slice(11, 16)}`
     : `${data.month.walkCount} walks`;
-  drawText(ctx, contextText, cardX + cardW - p, kickerY, {
+  drawText(ctx, contextText, cardX + cardW - p, cardY + 74, {
     size: 26,
     weight: 500,
     family: mono,
@@ -356,25 +319,6 @@ export function drawShareImage(
     const x = cardX + p + index * (statWidth + statGap);
     drawText(ctx, stat.label, x, statLabelY, { size: 24, weight: 600, family: mono, color: MUTED });
     drawText(ctx, stat.value, x, statValueY, { size: 48, weight: 700, family: sans, color: TEXT });
-  });
-
-  if (route && route.points.length >= 2) {
-    drawRoutePanel(ctx, { ...route, labelFont: mono }, width, height);
-  }
-
-  const footerY = height - 26;
-  drawText(ctx, "WALK LOG · MANUAL", cardX, footerY, {
-    size: 26,
-    weight: 600,
-    family: mono,
-    color: photo ? "#e4e4e7" : "#71717a",
-  });
-  drawText(ctx, shortDate(new Date().toISOString()), width - cardX, footerY, {
-    size: 26,
-    weight: 500,
-    family: mono,
-    color: photo ? "#e4e4e7" : "#71717a",
-    align: "right",
   });
 
   if (sticker) {
