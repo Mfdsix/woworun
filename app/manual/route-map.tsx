@@ -151,7 +151,7 @@ type KmSegment = {
   color: string;
 };
 
-const SPEEDS = [1, 2, 4] as const;
+const SPEEDS = [0.5, 1, 2, 4] as const;
 const ZOOM_MIN = 0.75;
 const ZOOM_MAX = 2.6;
 
@@ -215,12 +215,16 @@ export function RouteExplorer({
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [is3d, setIs3d] = useState(false);
+  const [pov, setPov] = useState(false);
+  const [headingDeg, setHeadingDeg] = useState(0);
+  const headingRef = useRef(0);
   const [heatmap, setHeatmap] = useState(false);
   const [gridOn, setGridOn] = useState(true);
   const [activeKm, setActiveKm] = useState<number | null>(null);
   const [scrub, setScrub] = useState(0); // 0..100 percent of distance
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
+  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(0.5);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dragRef = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -231,6 +235,43 @@ export function RouteExplorer({
   const elapsedS = puck.t;
   const overallPace = totalSeconds / (totalMeters / 1000);
   const activeSeg = activeKm ? segments.find((s) => s.km === activeKm) : null;
+
+  // First-person camera: heading = direction of travel around the puck,
+  // sampled ±60m so turns feel like sweeping rather than snapping.
+  const lookBehind = pointAtDistance(cum, points, projected, Math.max(0, scrubMeters - 60));
+  const lookAhead = pointAtDistance(cum, points, projected, Math.min(totalMeters, scrubMeters + 60));
+  const headingVx = lookAhead.x - lookBehind.x;
+  const headingVy = lookAhead.y - lookBehind.y;
+  const headingTarget =
+    Math.hypot(headingVx, headingVy) < 1e-6
+      ? headingDeg
+      : (-Math.atan2(headingVx, -headingVy) * 180) / Math.PI;
+
+  // Ease the camera rotation toward the target heading.
+  useEffect(() => {
+    if (!pov) return;
+    let raf = 0;
+    const ease = () => {
+      const current = headingRef.current;
+      let diff = headingTarget - current;
+      while (diff > 180) diff -= 360;
+      while (diff < -180) diff += 360;
+      if (Math.abs(diff) < 0.25) {
+        headingRef.current = headingTarget;
+        return;
+      }
+      headingRef.current = current + diff * 0.12;
+      setHeadingDeg(headingRef.current);
+      raf = window.requestAnimationFrame(ease);
+    };
+    raf = window.requestAnimationFrame(ease);
+    return () => window.cancelAnimationFrame(raf);
+  }, [pov, headingTarget]);
+
+  const POV_SCALE = 2.3;
+  const worldTransform = pov
+    ? `translate(${VIEW / 2} ${VIEW * 0.76}) rotate(${headingDeg.toFixed(2)}) scale(${POV_SCALE}) translate(${-puck.x.toFixed(2)} ${-puck.y.toFixed(2)})`
+    : `translate(${pan.x} ${pan.y}) scale(${zoom})`;
 
   function stopPlayback() {
     setPlaying(false);
@@ -246,7 +287,7 @@ export function RouteExplorer({
     if (!playing) return;
     intervalRef.current = setInterval(() => {
       setScrub((current) => {
-        const next = current + 1;
+        const next = current + 0.35 * speed;
         if (next >= 100) {
           stopPlayback();
           return 100;
@@ -260,7 +301,7 @@ export function RouteExplorer({
         intervalRef.current = null;
       }
     };
-  }, [playing]);
+  }, [playing, speed]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -285,6 +326,80 @@ export function RouteExplorer({
     setSpeed(SPEEDS[(index + 1) % SPEEDS.length]);
   }
 
+  // ---- 360 walking view: real perspective projection of the ground ----
+  const FOCAL = 760;
+  const CAM_H = 5;
+  const NEAR = 5.2;
+  const HORIZON = 300;
+  const FADE = 420;
+
+  const ground = useMemo(() => {
+    if (!pov) return null;
+    const camX = puck.x;
+    const camY = puck.y;
+    const hr = (headingDeg * Math.PI) / 180;
+    const cs = Math.cos(hr);
+    const sn = Math.sin(hr);
+
+    function proj360(wx: number, wy: number): { sx: number; sy: number; f: number } | null {
+      const dx = wx - camX;
+      const dy = wy - camY;
+      const rx = dx * cs - dy * sn;
+      const ry = dx * sn + dy * cs;
+      const f = -ry;
+      if (f <= NEAR) return null;
+      const sx = VIEW / 2 + (rx * FOCAL) / f;
+      const sy = HORIZON + (CAM_H * FOCAL) / f;
+      return { sx, sy, f };
+    }
+
+    // Route split into drawable sub-paths (gaps where the track is behind us).
+    const subpaths: { d: string; f: number }[] = [];
+    let cur: { d: string; f: number; n: number } | null = null;
+    for (let i = 0; i < projected.length; i += 1) {
+      const p = proj360(projected[i].x, projected[i].y);
+      if (p) {
+        if (!cur) cur = { d: `M${p.sx.toFixed(1)} ${p.sy.toFixed(1)}`, f: p.f, n: 1 };
+        else {
+          cur.d += ` L${p.sx.toFixed(1)} ${p.sy.toFixed(1)}`;
+          cur.f += p.f;
+          cur.n += 1;
+        }
+      } else if (cur) {
+        subpaths.push({ d: cur.d, f: cur.f / cur.n });
+        cur = null;
+      }
+    }
+    if (cur) subpaths.push({ d: cur.d, f: cur.f / cur.n });
+    subpaths.sort((a, b) => b.f - a.f);
+
+    // Ground grid receding to the horizon (aligned with the walking direction).
+    const rows = [5.6, 7, 9, 12, 16, 21, 28, 38, 50, 66, 88, 116, 152, 200, 260, 340].map(
+      (f) => ({ f, y: HORIZON + (CAM_H * FOCAL) / f }),
+    );
+    const latLines = [-64, -48, -32, -16, 0, 16, 32, 48, 64].map((L) => {
+      const fNear = NEAR + 0.4;
+      const fFar = 320;
+      return {
+        x1: VIEW / 2 + (L * FOCAL) / fNear,
+        y1: HORIZON + (CAM_H * FOCAL) / fNear,
+        x2: VIEW / 2 + (L * FOCAL) / fFar,
+        y2: HORIZON + (CAM_H * FOCAL) / fFar,
+      };
+    });
+
+    // km markers + start/finish projected into the ground view.
+    const markers = segments
+      .map((seg) => ({ seg, p: proj360(seg.x, seg.y) }))
+      .filter((m): m is { seg: KmSegment; p: { sx: number; sy: number; f: number } } => m.p !== null)
+      .sort((a, b) => b.p.f - a.p.f);
+
+    const startP = proj360(projected[0].x, projected[0].y);
+    const endP = proj360(projected[projected.length - 1].x, projected[projected.length - 1].y);
+
+    return { subpaths, rows, latLines, markers, startP, endP };
+  }, [pov, puck.x, puck.y, headingDeg, projected, segments]);
+
   return (
     <div
       className="map-backdrop"
@@ -298,9 +413,11 @@ export function RouteExplorer({
       <div className="map-dialog" role="dialog" aria-modal="true">
         <div className="map-head">
           <div className="map-head-left">
-            <span className="wl-badge">{formatShortDate(walk.startLocal)}</span>
-            <div>
-              <h3 className="map-title">{walk.name}</h3>
+            <div className="map-title-block">
+              <div className="map-title-row">
+                <h3 className="map-title">{walk.name}</h3>
+                <span className="wl-badge">{formatShortDate(walk.startLocal)}</span>
+              </div>
               <div className="map-head-meta">
                 <span className="map-head-km">{formatKm(walk.distanceM)} km</span>
                 <span>·</span>
@@ -328,6 +445,20 @@ export function RouteExplorer({
               </button>
             </div>
             <button
+              className={`wl-btn ${is3d ? "wl-btn-accent" : "wl-btn-ghost"}`}
+              type="button"
+              onClick={() => setIs3d((current) => !current)}
+            >
+              {is3d ? "3D: On" : "3D: Off"}
+            </button>
+            <button
+              className={`wl-btn ${pov ? "wl-btn-accent" : "wl-btn-ghost"}`}
+              type="button"
+              onClick={() => setPov((current) => !current)}
+            >
+              {pov ? "360: On" : "360 view"}
+            </button>
+            <button
               className="wl-btn wl-btn-ghost"
               type="button"
               onClick={() => setGridOn((current) => !current)}
@@ -350,14 +481,15 @@ export function RouteExplorer({
 
         <div
           ref={viewportRef}
-          className={`map-viewport ${gridOn ? "is-grid" : "is-plain"}`}
+          className={`map-viewport ${gridOn ? "" : "no-grid"}`}
           onWheel={(event) => {
             event.preventDefault();
+            if (pov) return;
             const delta = event.deltaY < 0 ? 0.15 : -0.15;
             setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number((z + delta).toFixed(2)))));
           }}
           onPointerDown={(event) => {
-            if ((event.target as HTMLElement).closest("button")) return;
+            if (pov || (event.target as HTMLElement).closest("button")) return;
             dragRef.current = {
               px: event.clientX,
               py: event.clientY,
@@ -381,9 +513,120 @@ export function RouteExplorer({
             dragRef.current = null;
           }}
         >
+          <div className={`map-plane ${pov ? "is-plain is-pov" : gridOn ? "is-grid" : "is-plain"}${is3d && !pov ? " is-3d" : ""}`}>
           <svg viewBox={`0 0 ${VIEW} ${VIEW}`} preserveAspectRatio="xMidYMid meet">
-            <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+            <defs>
+              <radialGradient id="vpGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.07)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+              </radialGradient>
+            </defs>
+            {pov && ground ? (
+              <g>
+                <circle cx={VIEW / 2} cy={HORIZON} r={300} fill="url(#vpGlow)" />
+                <line x1={0} x2={VIEW} y1={HORIZON} y2={HORIZON} stroke="rgba(255,255,255,0.09)" strokeWidth={1.5} />
+
+                {gridOn && (
+                  <g>
+                    {ground.rows.map((row) => (
+                      <line
+                        key={`row-${row.f}`}
+                        x1={0}
+                        x2={VIEW}
+                        y1={row.y}
+                        y2={row.y}
+                        stroke="rgba(255,255,255,0.055)"
+                        strokeWidth={1.5}
+                        opacity={Math.max(0, 1 - row.f / 360)}
+                      />
+                    ))}
+                    {ground.latLines.map((l, i) => (
+                      <line
+                        key={`lat-${i}`}
+                        x1={l.x1}
+                        y1={l.y1}
+                        x2={l.x2}
+                        y2={l.y2}
+                        stroke="rgba(255,255,255,0.045)"
+                        strokeWidth={1.5}
+                      />
+                    ))}
+                  </g>
+                )}
+
+                {ground.subpaths.map((sp, i) => (
+                  <path
+                    key={i}
+                    d={sp.d}
+                    fill="none"
+                    stroke={ACCENT}
+                    strokeWidth={Math.max(7, Math.min(30, 900 / sp.f))}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity={Math.max(0.18, Math.min(1, 1.15 - sp.f / FADE))}
+                  />
+                ))}
+
+                {ground.startP && (
+                  <circle
+                    cx={ground.startP.sx}
+                    cy={ground.startP.sy}
+                    r={Math.max(6, Math.min(26, 420 / ground.startP.f))}
+                    className="map-start-dot"
+                  />
+                )}
+                {ground.endP && (
+                  <circle
+                    cx={ground.endP.sx}
+                    cy={ground.endP.sy}
+                    r={Math.max(6, Math.min(26, 420 / ground.endP.f))}
+                    className="map-finish-dot"
+                  />
+                )}
+
+                {ground.markers.map(({ seg, p }) => {
+                  const r = Math.max(7, Math.min(38, 430 / p.f));
+                  return (
+                    <g
+                      key={seg.km}
+                      className="map-km-marker"
+                      opacity={Math.max(0.25, Math.min(1, 1.15 - p.f / FADE))}
+                      onMouseEnter={() => setActiveKm(seg.km)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setActiveKm(seg.km);
+                      }}
+                    >
+                      <circle
+                        cx={p.sx}
+                        cy={p.sy}
+                        r={r}
+                        fill={activeKm === seg.km ? ACCENT : "#141416"}
+                        stroke={heatmap ? seg.color : ACCENT}
+                        strokeWidth={2.5}
+                      />
+                      <text
+                        x={p.sx}
+                        y={p.sy + r * 0.42}
+                        textAnchor="middle"
+                        fontSize={r * 1.15}
+                        className="map-km-marker-text"
+                      >
+                        {seg.km}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                <g>
+                  <circle cx={VIEW / 2} cy={VIEW * 0.93} r={30} fill={ACCENT} fillOpacity={0.28} />
+                  <circle cx={VIEW / 2} cy={VIEW * 0.93} r={14} fill={ACCENT} stroke="#fff" strokeWidth={4} />
+                </g>
+              </g>
+            ) : (
+            <g transform={worldTransform}>
               <path d={basePath} className="route-base-hidden" />
+
 
               {heatmap ? (
                 segments.map((seg) => (
@@ -410,6 +653,7 @@ export function RouteExplorer({
                 <g
                   key={seg.km}
                   className="map-km-marker"
+                  transform={pov ? `rotate(${-headingDeg.toFixed(2)} ${seg.x} ${seg.y})` : undefined}
                   onMouseEnter={() => setActiveKm(seg.km)}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -443,7 +687,9 @@ export function RouteExplorer({
                 <circle cx={puck.x} cy={puck.y} r={9} fill={ACCENT} stroke="#fff" strokeWidth={3} />
               </g>
             </g>
+            )}
           </svg>
+          </div>
 
           <div className="map-inspector">
             <div className="map-inspector-label">
@@ -472,11 +718,12 @@ export function RouteExplorer({
             </div>
           </div>
 
-          <div className="route-zoom map-zoom">
+          <div className={`route-zoom map-zoom${pov ? " is-hidden" : ""}`}>
             <button
               className="route-zoom-btn"
               type="button"
               aria-label="Zoom in"
+              disabled={pov}
               onClick={() => setZoom((z) => Math.min(ZOOM_MAX, Number((z + 0.25).toFixed(2))))}
             >
               +
@@ -518,7 +765,9 @@ export function RouteExplorer({
             )}
           </div>
 
-          <div className="map-hint">Scroll to zoom · Drag to pan · Click km markers</div>
+          <div className="map-hint">
+            {pov ? "360 walking view · camera follows your path" : "Scroll to zoom · Drag to pan · Click km markers"}
+          </div>
         </div>
 
         <div className="map-footer">
