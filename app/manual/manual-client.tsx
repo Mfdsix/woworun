@@ -19,7 +19,7 @@ import {
 import { addDays, jakartaToday } from "@/lib/strava/dates";
 import type { DashboardData, WalkSession } from "@/lib/strava/types";
 import { CalendarCard } from "./calendar-card";
-import { RouteMap, type RoutePoint } from "./route-map";
+import { RoutePreview, RouteExplorer, type RoutePoint } from "./route-map";
 import {
   addMonths,
   filterWalksByRange,
@@ -210,6 +210,7 @@ export function ManualClient({
   const routesRef = useRef(routes);
   routesRef.current = routes;
   const [routeBusy, setRouteBusy] = useState(false);
+  const [explorerOpen, setExplorerOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -752,7 +753,10 @@ export function ManualClient({
 
                   {selectedRoute && (
                     <div className="wl-route-block">
-                      <RouteMap points={selectedRoute} interactive animated />
+                      <RoutePreview
+                        points={selectedRoute}
+                        onExpand={() => setExplorerOpen(true)}
+                      />
                       <div className="wl-actions">
                         <button
                           className="wl-btn wl-btn-ghost"
@@ -768,7 +772,7 @@ export function ManualClient({
 
                   <p className="wl-detail-hint">
                     {selectedRoute
-                      ? "Route attached · use the map controls to play or zoom."
+                      ? "Route attached · tap the map to open the interactive explorer."
                       : "Tap the paperclip icon to attach a GPX route for this walk."}
                   </p>
                 </div>
@@ -1013,6 +1017,14 @@ export function ManualClient({
           selectedPoints={selectedPoints}
           route={selectedRoute}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+
+      {explorerOpen && selected && selectedRoute && (
+        <RouteExplorer
+          points={selectedRoute}
+          walk={selected}
+          onClose={() => setExplorerOpen(false)}
         />
       )}
 

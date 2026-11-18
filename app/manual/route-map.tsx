@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cumulativeDistancesM } from "@/lib/gpx";
-import { formatDuration, formatKm } from "@/lib/format";
+import { formatDuration, formatKm, formatPace } from "@/lib/format";
+import type { WalkSession } from "@/lib/strava/types";
 
 export type RoutePoint = [lat: number, lng: number, elapsedS: number];
 
 const VIEW = 1000;
 const PAD = 84;
+const ACCENT = "#fc4c02";
+const FAST = [52, 199, 89]; // #34C759
+const SLOW = [255, 158, 102]; // #FF9E66
 
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -39,118 +43,241 @@ export function projectPoints(points: RoutePoint[]): { x: number; y: number }[] 
   }));
 }
 
-function pointAtTime(points: RoutePoint[], seconds: number): RoutePoint {
-  if (seconds <= 0) return points[0];
-  const last = points[points.length - 1];
-  if (seconds >= last[2]) return last;
-
+function pointAtDistance(
+  cum: number[],
+  points: RoutePoint[],
+  projected: { x: number; y: number }[],
+  meters: number,
+): { x: number; y: number; t: number } {
+  const total = cum[cum.length - 1];
+  if (meters <= 0) return { x: projected[0].x, y: projected[0].y, t: 0 };
+  if (meters >= total) {
+    const last = points.length - 1;
+    return { x: projected[last].x, y: projected[last].y, t: points[last][2] };
+  }
   let lo = 0;
   let hi = points.length - 1;
   while (hi - lo > 1) {
     const mid = (lo + hi) >> 1;
-    if (points[mid][2] <= seconds) lo = mid;
+    if (cum[mid] <= meters) lo = mid;
     else hi = mid;
   }
-
-  const a = points[lo];
-  const b = points[hi];
-  const span = Math.max(b[2] - a[2], 1e-6);
-  const f = (seconds - a[2]) / span;
-  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, seconds];
+  const span = Math.max(cum[hi] - cum[lo], 1e-6);
+  const f = (meters - cum[lo]) / span;
+  return {
+    x: projected[lo].x + (projected[hi].x - projected[lo].x) * f,
+    y: projected[lo].y + (projected[hi].y - projected[lo].y) * f,
+    t: points[lo][2] + (points[hi][2] - points[lo][2]) * f,
+  };
 }
 
-function distanceAtTime(cum: number[], points: RoutePoint[], seconds: number): number {
-  if (seconds <= 0) return 0;
-  if (seconds >= points[points.length - 1][2]) return cum[cum.length - 1];
-  let lo = 0;
-  let hi = points.length - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (points[mid][2] <= seconds) lo = mid;
-    else hi = mid;
+function lerpColor(from: number[], to: number[], t: number): string {
+  const mix = from.map((c, i) => Math.round(c + (to[i] - c) * Math.min(1, Math.max(0, t))));
+  return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+}
+
+function pathTo(points: { x: number; y: number }[], from: number, to: number): string {
+  let d = "";
+  for (let i = from; i <= to; i += 1) {
+    d += `${i === from ? "M" : "L"}${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)} `;
   }
-  const a = points[lo];
-  const b = points[hi];
-  const span = Math.max(b[2] - a[2], 1e-6);
-  const f = (seconds - a[2]) / span;
-  return cum[lo] + (cum[hi] - cum[lo]) * f;
+  return d;
 }
 
-type RouteMapProps = {
+/* ------------------------------------------------------------------ */
+/* Minimal in-card preview — click to open the full explorer            */
+/* ------------------------------------------------------------------ */
+
+export function RoutePreview({
+  points,
+  onExpand,
+  className,
+}: {
   points: RoutePoint[];
-  /// Play controls + moving marker under the map.
-  animated?: boolean;
-  /// Zoom buttons + legend overlay (in-card map).
-  interactive?: boolean;
+  onExpand: () => void;
   className?: string;
+}) {
+  const projected = useMemo(() => projectPoints(points), [points]);
+  const basePath = useMemo(
+    () => projected.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" "),
+    [projected],
+  );
+  const first = projected[0];
+  const last = projected[projected.length - 1];
+
+  return (
+    <button
+      type="button"
+      className={className ? `route-preview-box ${className}` : "route-preview-box"}
+      onClick={onExpand}
+      aria-label="Expand interactive route map"
+    >
+      <svg viewBox={`0 0 ${VIEW} ${VIEW}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Route preview">
+        <path
+          key={basePath}
+          d={basePath}
+          pathLength={1000}
+          className="route-base route-base-preview"
+        />
+        <circle cx={first.x} cy={first.y} r={12} className="route-preview-dot-start" />
+        <circle cx={last.x} cy={last.y} r={10} className="route-preview-dot-end" />
+      </svg>
+      <span className="route-expand-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+          />
+        </svg>
+        Expand map
+      </span>
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Full interactive explorer modal                                     */
+/* ------------------------------------------------------------------ */
+
+type KmSegment = {
+  km: number;
+  fromIdx: number;
+  toIdx: number;
+  x: number;
+  y: number;
+  paceSecPerKm: number;
+  elapsedS: number;
+  color: string;
 };
 
 const SPEEDS = [1, 2, 4] as const;
-const ZOOM_MIN = 0.8;
-const ZOOM_MAX = 1.6;
+const ZOOM_MIN = 0.75;
+const ZOOM_MAX = 2.6;
 
-export function RouteMap({ points, animated = false, interactive = false, className }: RouteMapProps) {
+export function RouteExplorer({
+  points,
+  walk,
+  onClose,
+}: {
+  points: RoutePoint[];
+  walk: WalkSession;
+  onClose: () => void;
+}) {
   const projected = useMemo(() => projectPoints(points), [points]);
   const cum = useMemo(() => cumulativeDistancesM(points), [points]);
-  const totalSeconds = points[points.length - 1][2] || 1;
   const totalMeters = cum[cum.length - 1];
-
+  const totalSeconds = points[points.length - 1][2];
   const basePath = useMemo(
     () => projected.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" "),
     [projected],
   );
 
-  const kmTicks = useMemo(() => {
-    const ticks: { x: number; y: number; km: number }[] = [];
+  const segments = useMemo<KmSegment[]>(() => {
+    const boundaries: number[] = [];
     let km = 1;
     for (let i = 1; i < points.length - 1 && km * 1000 < totalMeters; i += 1) {
       if (cum[i] >= km * 1000) {
-        ticks.push({ x: projected[i].x, y: projected[i].y, km });
+        boundaries.push(i);
         km += 1;
-        i -= 1; // re-check the same point for the next km boundary
+        i -= 1;
       }
     }
-    return ticks.slice(0, 24);
+    const idxs = [0, ...boundaries, points.length - 1];
+    const paces: number[] = [];
+    const segs: KmSegment[] = [];
+    for (let s = 0; s < idxs.length - 1; s += 1) {
+      const fromIdx = idxs[s];
+      const toIdx = idxs[s + 1];
+      const distKm = (cum[toIdx] - cum[fromIdx]) / 1000;
+      const pace = (points[toIdx][2] - points[fromIdx][2]) / Math.max(distKm, 0.05);
+      paces.push(pace);
+      const tipIdx = toIdx;
+      segs.push({
+        km: s + 1,
+        fromIdx,
+        toIdx,
+        x: projected[tipIdx].x,
+        y: projected[tipIdx].y,
+        paceSecPerKm: pace,
+        elapsedS: points[toIdx][2],
+        color: "",
+      });
+    }
+    const min = Math.min(...paces);
+    const max = Math.max(...paces);
+    for (const seg of segs) {
+      const t = max > min ? (seg.paceSecPerKm - min) / (max - min) : 0.5;
+      seg.color = lerpColor(FAST, SLOW, t);
+    }
+    return segs;
   }, [cum, points, projected, totalMeters]);
 
   const [zoom, setZoom] = useState(1);
-  const [elapsedS, setElapsedS] = useState(0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [heatmap, setHeatmap] = useState(false);
+  const [gridOn, setGridOn] = useState(true);
+  const [activeKm, setActiveKm] = useState<number | null>(null);
+  const [scrub, setScrub] = useState(0); // 0..100 percent of distance
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
-  const rafRef = useRef<number | null>(null);
-  const lastTickRef = useRef<number | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dragRef = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  const scrubMeters = (scrub / 100) * totalMeters;
+  const puck = pointAtDistance(cum, points, projected, scrubMeters);
+  const coveredKm = totalMeters / 1000 * (scrub / 100);
+  const elapsedS = puck.t;
+  const overallPace = totalSeconds / (totalMeters / 1000);
+  const activeSeg = activeKm ? segments.find((s) => s.km === activeKm) : null;
+
+  function stopPlayback() {
+    setPlaying(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }
+
+  useEffect(() => () => stopPlayback(), []);
 
   useEffect(() => {
-    if (!animated || !playing) return;
-    lastTickRef.current = null;
-
-    const step = (now: number) => {
-      const last = lastTickRef.current;
-      lastTickRef.current = now;
-      if (last !== null) {
-        const dt = Math.min(0.25, (now - last) / 1000);
-        setElapsedS((current) => {
-          const next = current + dt * speed;
-          if (next >= totalSeconds) {
-            setPlaying(false);
-            return totalSeconds;
-          }
-          return next;
-        });
-      }
-      rafRef.current = window.requestAnimationFrame(step);
-    };
-
-    rafRef.current = window.requestAnimationFrame(step);
+    if (!playing) return;
+    intervalRef.current = setInterval(() => {
+      setScrub((current) => {
+        const next = current + 1;
+        if (next >= 100) {
+          stopPlayback();
+          return 100;
+        }
+        return next;
+      });
+    }, 45);
     return () => {
-      if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [animated, playing, speed, totalSeconds]);
+  }, [playing]);
 
-  function reset() {
-    setPlaying(false);
-    setElapsedS(0);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function applyPan(dxPx: number, dyPx: number) {
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const scale = VIEW / rect.width;
+    setPan((current) => ({
+      x: current.x + dxPx * scale,
+      y: current.y + dyPx * scale,
+    }));
   }
 
   function cycleSpeed() {
@@ -158,149 +285,283 @@ export function RouteMap({ points, animated = false, interactive = false, classN
     setSpeed(SPEEDS[(index + 1) % SPEEDS.length]);
   }
 
-  const marker = animated ? pointAtTime(points, elapsedS) : null;
-  const markerPx = marker ? projectPoints([marker])[0] : null;
-  const coveredM = animated ? distanceAtTime(cum, points, elapsedS) : totalMeters;
-
-  const totalKmLabel = `${formatKm(totalMeters)} km`;
-
   return (
-    <div className={className ? `route-panel ${className}` : "route-panel"}>
-      <div className={interactive ? "route-map-box" : undefined}>
-        <svg
-          className="route-svg"
-          viewBox={`0 0 ${VIEW} ${VIEW}`}
-          role="img"
-          aria-label="Walking route"
-          style={interactive ? { transform: `scale(${zoom})` } : undefined}
+    <div
+      className="map-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          stopPlayback();
+          onClose();
+        }
+      }}
+    >
+      <div className="map-dialog" role="dialog" aria-modal="true">
+        <div className="map-head">
+          <div className="map-head-left">
+            <span className="wl-badge">{formatShortDate(walk.startLocal)}</span>
+            <div>
+              <h3 className="map-title">{walk.name}</h3>
+              <div className="map-head-meta">
+                <span className="map-head-km">{formatKm(walk.distanceM)} km</span>
+                <span>·</span>
+                <span>{formatDuration(walk.movingTimeS)}</span>
+                <span>·</span>
+                <span className="map-head-pace">{formatPace(overallPace)}/km</span>
+              </div>
+            </div>
+          </div>
+          <div className="map-head-actions">
+            <div className="cal-switch">
+              <button
+                type="button"
+                className={`cal-switch-tab${!heatmap ? " is-active" : ""}`}
+                onClick={() => setHeatmap(false)}
+              >
+                Solid orange
+              </button>
+              <button
+                type="button"
+                className={`cal-switch-tab${heatmap ? " is-active" : ""}`}
+                onClick={() => setHeatmap(true)}
+              >
+                Pace heatmap
+              </button>
+            </div>
+            <button
+              className="wl-btn wl-btn-ghost"
+              type="button"
+              onClick={() => setGridOn((current) => !current)}
+            >
+              Grid: {gridOn ? "On" : "Off"}
+            </button>
+            <button
+              className="wl-btn wl-btn-ghost"
+              type="button"
+              aria-label="Close route explorer"
+              onClick={() => {
+                stopPlayback();
+                onClose();
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={viewportRef}
+          className={`map-viewport ${gridOn ? "is-grid" : "is-plain"}`}
+          onWheel={(event) => {
+            event.preventDefault();
+            const delta = event.deltaY < 0 ? 0.15 : -0.15;
+            setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number((z + delta).toFixed(2)))));
+          }}
+          onPointerDown={(event) => {
+            if ((event.target as HTMLElement).closest("button")) return;
+            dragRef.current = {
+              px: event.clientX,
+              py: event.clientY,
+              ox: pan.x,
+              oy: pan.y,
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            const drag = dragRef.current;
+            if (!drag) return;
+            setPan({
+              x: drag.ox + (event.clientX - drag.px),
+              y: drag.oy + (event.clientY - drag.py),
+            });
+          }}
+          onPointerUp={() => {
+            dragRef.current = null;
+          }}
+          onPointerCancel={() => {
+            dragRef.current = null;
+          }}
         >
-          <defs>
-            <linearGradient id="routeTrackGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ff6b2c" />
-              <stop offset="50%" stopColor="#fc4c02" />
-              <stop offset="100%" stopColor="#e04300" />
-            </linearGradient>
-          </defs>
+          <svg viewBox={`0 0 ${VIEW} ${VIEW}`} preserveAspectRatio="xMidYMid meet">
+            <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+              <path d={basePath} className="route-base-hidden" />
 
-          <path
-            key={basePath}
-            d={basePath}
-            pathLength={1000}
-            className="route-base"
-            stroke="url(#routeTrackGradient)"
-          />
-          {animated && elapsedS > 0 && (
-            <path
-              d={projected
-                .slice(
-                  0,
-                  Math.max(
-                    2,
-                    points.findIndex((p) => p[2] >= elapsedS) + 1,
-                  ),
-                )
-                .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-                .join(" ")}
-              className="route-progress"
-            />
-          )}
+              {heatmap ? (
+                segments.map((seg) => (
+                  <path
+                    key={seg.km}
+                    d={pathTo(projected, seg.fromIdx, seg.toIdx)}
+                    fill="none"
+                    stroke={seg.color}
+                    strokeWidth={10}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ))
+              ) : (
+                <path
+                  key={basePath}
+                  d={basePath}
+                  pathLength={1000}
+                  className="route-base route-base-explorer"
+                />
+              )}
 
-          {kmTicks.map((tick) => (
-            <g key={tick.km}>
-              <circle cx={tick.x} cy={tick.y} r={7} className="route-km-dot" />
-              <text x={tick.x} y={tick.y - 16} className="route-km-label" textAnchor="middle">
-                {tick.km}
-              </text>
+              {segments.map((seg) => (
+                <g
+                  key={seg.km}
+                  className="map-km-marker"
+                  onMouseEnter={() => setActiveKm(seg.km)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveKm(seg.km);
+                  }}
+                >
+                  <circle
+                    cx={seg.x}
+                    cy={seg.y}
+                    r={11}
+                    fill={activeKm === seg.km ? ACCENT : "#141416"}
+                    stroke={heatmap ? seg.color : ACCENT}
+                    strokeWidth={2.5}
+                  />
+                  <text x={seg.x} y={seg.y + 4} textAnchor="middle" className="map-km-marker-text">
+                    {seg.km}
+                  </text>
+                </g>
+              ))}
+
+              <circle cx={projected[0].x} cy={projected[0].y} r={8} className="map-start-dot" />
+              <circle
+                cx={projected[projected.length - 1].x}
+                cy={projected[projected.length - 1].y}
+                r={8}
+                className="map-finish-dot"
+              />
+
+              <g>
+                <circle cx={puck.x} cy={puck.y} r={18} fill={ACCENT} fillOpacity={0.28} />
+                <circle cx={puck.x} cy={puck.y} r={9} fill={ACCENT} stroke="#fff" strokeWidth={3} />
+              </g>
             </g>
-          ))}
+          </svg>
 
-          <circle cx={projected[0].x} cy={projected[0].y} r={14} className="route-start-glow" />
-          <circle
-            cx={projected[0].x}
-            cy={projected[0].y}
-            r={7}
-            className="route-start"
-          />
-          <circle
-            cx={projected[projected.length - 1].x}
-            cy={projected[projected.length - 1].y}
-            r={13}
-            className="route-finish"
-          />
-
-          {markerPx && (
-            <g className="route-marker">
-              <circle cx={markerPx.x} cy={markerPx.y} r={26} className="route-marker-glow" />
-              <circle cx={markerPx.x} cy={markerPx.y} r={13} className="route-marker-core" />
-            </g>
-          )}
-        </svg>
-
-        {interactive && (
-          <>
-            <div className="route-zoom">
-              <button
-                className="route-zoom-btn"
-                type="button"
-                aria-label="Zoom in"
-                onClick={() => setZoom((z) => Math.min(ZOOM_MAX, Number((z + 0.2).toFixed(1))))}
-              >
-                +
-              </button>
-              <button
-                className="route-zoom-btn"
-                type="button"
-                aria-label="Zoom out"
-                onClick={() => setZoom((z) => Math.max(ZOOM_MIN, Number((z - 0.2).toFixed(1))))}
-              >
-                −
-              </button>
+          <div className="map-inspector">
+            <div className="map-inspector-label">
+              <span className="map-inspector-dot" />
+              {activeSeg ? `Split · Kilometer ${activeSeg.km}` : scrub > 0 ? "Live playback" : "Route overview"}
             </div>
-            <div className="route-legend">
-              <span className="inline-flex items-center gap-1.5">
-                <i /> Start / Finish
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <b /> GPS track
-              </span>
-              <span className="route-legend-km">{totalKmLabel}</span>
+            <div className="map-inspector-grid">
+              <div>
+                <span className="map-inspector-caption">Distance</span>
+                <span className="map-inspector-value">
+                  {coveredKm.toFixed(1)} / {(totalMeters / 1000).toFixed(1)} km
+                </span>
+              </div>
+              <div className="map-inspector-sep" />
+              <div>
+                <span className="map-inspector-caption">Elapsed</span>
+                <span className="map-inspector-value">{formatDuration(Math.round(elapsedS))}</span>
+              </div>
+              <div className="map-inspector-sep" />
+              <div>
+                <span className="map-inspector-caption">Pace</span>
+                <span className="map-inspector-value is-accent">
+                  {formatPace(activeSeg ? activeSeg.paceSecPerKm : overallPace)}/km
+                </span>
+              </div>
             </div>
-          </>
-        )}
-      </div>
+          </div>
 
-      {animated && (
-        <div className="route-controls">
+          <div className="route-zoom map-zoom">
+            <button
+              className="route-zoom-btn"
+              type="button"
+              aria-label="Zoom in"
+              onClick={() => setZoom((z) => Math.min(ZOOM_MAX, Number((z + 0.25).toFixed(2))))}
+            >
+              +
+            </button>
+            <button
+              className="route-zoom-btn"
+              type="button"
+              aria-label="Zoom out"
+              onClick={() => setZoom((z) => Math.max(ZOOM_MIN, Number((z - 0.25).toFixed(2))))}
+            >
+              −
+            </button>
+            <button
+              className="route-zoom-btn"
+              type="button"
+              aria-label="Reset pan and zoom"
+              onClick={() => {
+                setZoom(1);
+                setPan({ x: 0, y: 0 });
+              }}
+            >
+              ⌂
+            </button>
+          </div>
+
+          <div className="route-legend map-legend">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="route-legend-start" /> Start
+            </span>
+            <span className="inline-flex items-gap-1.5 items-center">
+              <i /> Finish
+            </span>
+            {heatmap && (
+              <span className="map-legend-heat">
+                <span>Slow</span>
+                <span className="map-legend-gradient" />
+                <span>Fast</span>
+              </span>
+            )}
+          </div>
+
+          <div className="map-hint">Scroll to zoom · Drag to pan · Click km markers</div>
+        </div>
+
+        <div className="map-footer">
           <button
-            className="wl-btn wl-btn-ghost"
+            className="wl-btn wl-btn-accent"
             type="button"
             onClick={() => {
-              if (elapsedS >= totalSeconds) reset();
-              setPlaying((current) => !current);
+              if (playing) {
+                stopPlayback();
+                return;
+              }
+              if (scrub >= 100) setScrub(0);
+              setPlaying(true);
             }}
           >
-            {playing ? "Pause" : elapsedS >= totalSeconds ? "Replay" : "Play"}
+            {playing ? "Pause" : scrub >= 100 ? "Replay walk" : "Play walk"}
           </button>
           <button className="wl-btn wl-btn-ghost route-speed" type="button" onClick={cycleSpeed}>
             {speed}×
           </button>
+          <span className="map-slider-label">{(coveredKm).toFixed(1)}</span>
           <input
-            className="route-scrub"
+            className="strava-slider"
             type="range"
             min={0}
-            max={Math.round(totalSeconds)}
-            value={Math.round(elapsedS)}
+            max={100}
+            value={Math.round(scrub)}
             onChange={(event) => {
-              setPlaying(false);
-              setElapsedS(Number(event.target.value));
+              stopPlayback();
+              setScrub(Number(event.target.value));
             }}
             aria-label="Route position"
           />
-          <span className="route-readout">
-            {formatKm(coveredM)} km · {formatDuration(Math.round(elapsedS))}
-          </span>
+          <span className="map-slider-label">{formatKm(totalMeters)} km</span>
         </div>
-      )}
+      </div>
     </div>
   );
+}
+
+function formatShortDate(iso: string): string {
+  const [year, month, day] = iso.slice(0, 10).split("-").map(Number);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  if (!year || !month || !day) return iso.slice(0, 10);
+  return `${day} ${months[month - 1]}`;
 }
