@@ -95,7 +95,7 @@ const BG = "#09090b";
 const LINE = "rgba(255,255,255,0.08)";
 const TEXT = "#f4f4f5";
 const MUTED = "#a1a1aa";
-const ACCENT = "#f97316";
+const ACCENT = "#fc4c02";
 
 function roundRect(
   ctx: CanvasRenderingContext2D,
@@ -210,7 +210,7 @@ function drawRoutePanel(
   ctx.lineWidth = 12;
   ctx.stroke(new Path2D(path));
 
-  ctx.shadowColor = "rgba(249,115,22,0.4)";
+  ctx.shadowColor = "rgba(252,76,2,0.4)";
   ctx.shadowBlur = 14;
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 7;
@@ -273,8 +273,8 @@ export function drawShareImage(
       height * 0.12,
       width * 0.6,
     );
-    glow.addColorStop(0, "rgba(249,115,22,0.14)");
-    glow.addColorStop(1, "rgba(249,115,22,0)");
+    glow.addColorStop(0, "rgba(252,76,2,0.14)");
+    glow.addColorStop(1, "rgba(252,76,2,0)");
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
   }
@@ -295,7 +295,7 @@ export function drawShareImage(
 
   const accent = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY);
   accent.addColorStop(0, ACCENT);
-  accent.addColorStop(1, "rgba(249,115,22,0)");
+  accent.addColorStop(1, "rgba(252,76,2,0)");
   ctx.fillStyle = accent;
   ctx.fillRect(cardX, cardY, cardW, 5);
 

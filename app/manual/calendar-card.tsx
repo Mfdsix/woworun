@@ -38,20 +38,15 @@ type CalendarCardProps = {
 };
 
 function pillStyle(totalKm: number, isSelected: boolean): CSSProperties {
-  const ratio = Math.min(1, Math.max(0.25, (totalKm - 2.5) / 5));
-  const alpha = (0.1 + ratio * 0.1).toFixed(2);
+  void totalKm;
   if (isSelected) {
     return {
-      background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
-      boxShadow: "0 2px 8px rgba(249, 115, 22, 0.25)",
-      color: "#1c1917",
+      background: "#fc4c02",
+      boxShadow: "0 1px 6px rgba(252, 76, 2, 0.3)",
+      color: "#fff",
     };
   }
-  return {
-    background: `rgba(249, 115, 22, ${alpha})`,
-    border: "1px solid rgba(249, 115, 22, 0.22)",
-    color: "#ffedd5",
-  };
+  return {};
 }
 
 export function CalendarCard({
@@ -137,13 +132,14 @@ export function CalendarCard({
                 <button
                   key={date}
                   type="button"
-                  className="cal-pill"
+                  className={`cal-pill${isSelected ? " is-selected" : ""}`}
                   style={pillStyle(dayKmValue, isSelected)}
+                  data-km={`${dayKmValue.toFixed(1)} km`}
                   onClick={() => onSelectDate(date)}
                   aria-label={`${date}, ${dayKmValue.toFixed(1)} km`}
                 >
                   <span className="cal-pill-day">{Number(date.slice(8, 10))}</span>
-                  <span className="cal-pill-km">{dayKmValue.toFixed(1)}k</span>
+                  <span className="cal-pill-dot" />
                 </button>
               );
             }
@@ -201,14 +197,15 @@ export function CalendarCard({
                 <button
                   key={date}
                   type="button"
-                  className="cal-pill cal-pill-tall"
+                  className={`cal-pill cal-pill-tall${isSelected ? " is-selected" : ""}`}
                   style={pillStyle(dayKmValue, isSelected)}
+                  data-km={`${dayKmValue.toFixed(1)} km`}
                   onClick={() => onSelectDate(date)}
                   aria-label={`${date}, ${dayKmValue.toFixed(1)} km`}
                 >
-                  <span className="cal-pill-km">{WEEKDAY_LABELS[index]}</span>
+                  <span className="cal-side-label">{WEEKDAY_LABELS[index]}</span>
                   <span className="cal-pill-day">{Number(date.slice(8, 10))}</span>
-                  <span className="cal-pill-km">{dayKmValue.toFixed(1)}k</span>
+                  <span className="cal-side-label">{dayKmValue.toFixed(1)}k</span>
                 </button>
               );
             }
@@ -222,9 +219,9 @@ export function CalendarCard({
                   onClick={() => onSelectDate(date)}
                   aria-label={`${date}, today`}
                 >
-                  <span className="cal-pill-km is-accent">{WEEKDAY_LABELS[index]}</span>
+                  <span className="cal-side-label is-accent">{WEEKDAY_LABELS[index]}</span>
                   <span className="cal-ring-day">{Number(date.slice(8, 10))}</span>
-                  <span className="cal-ring-sub">today</span>
+                  <span className="cal-side-label">today</span>
                 </button>
               );
             }
@@ -237,9 +234,9 @@ export function CalendarCard({
                 onClick={() => onSelectDate(date)}
                 aria-label={`${date}, no walk`}
               >
-                <span className="cal-pill-km">{WEEKDAY_LABELS[index]}</span>
+                <span className="cal-side-label">{WEEKDAY_LABELS[index]}</span>
                 <span className="cal-week-daynum">{Number(date.slice(8, 10))}</span>
-                <span className="cal-pill-km">—</span>
+                <span className="cal-side-label">—</span>
               </button>
             );
           })}
@@ -257,7 +254,13 @@ export function CalendarCard({
     if (hasWalk) {
       return (
         <div className="cal-viewport">
-          <div className="cal-spotlight" style={pillStyle(dayKmValue, false)}>
+          <div
+            className="cal-spotlight"
+            style={{
+              background: "rgba(252, 76, 2, 0.14)",
+              border: "1px solid rgba(252, 76, 2, 0.3)",
+            }}
+          >
             <div>
               <div className="cal-spotlight-kicker">{dayTitle(anchorDate)}</div>
               <div className="cal-spotlight-km">{dayKmValue.toFixed(1)} km</div>
