@@ -2073,7 +2073,18 @@ input.pin-slot.is-filled {
 
 .wl-home:hover {
   color: var(--wl-text);
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+.wl-home.is-active {
+  color: var(--wl-accent);
   border-color: rgba(249, 115, 22, 0.4);
+  background: rgba(249, 115, 22, 0.09);
+}
+
+.wl-home:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .wl-home:focus-visible {
@@ -2939,4 +2950,126 @@ input.pin-slot.is-filled {
   .wl-substat.is-peak {
     padding: 7px 8px;
   }
+}
+
+/* ---------- GPX route panel ---------- */
+
+.route-panel {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: #0d0d10;
+  overflow: hidden;
+}
+
+.route-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.route-grid line {
+  stroke: rgba(255, 255, 255, 0.028);
+  stroke-width: 1;
+}
+
+.route-base {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.route-progress {
+  fill: none;
+  stroke: #f97316;
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.35));
+}
+
+.route-km-dot {
+  fill: #3f3f46;
+}
+
+.route-km-label {
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 500;
+  fill: #71717a;
+}
+
+.route-start {
+  fill: #f4f4f5;
+}
+
+.route-finish {
+  fill: #f97316;
+  stroke: rgba(249, 115, 22, 0.35);
+  stroke-width: 6;
+}
+
+.route-marker-core {
+  fill: #f97316;
+  stroke: #ffedd5;
+  stroke-width: 4;
+}
+
+.route-marker-glow {
+  fill: rgba(249, 115, 22, 0.22);
+}
+
+.route-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.route-speed {
+  min-width: 40px;
+  padding: 0 8px;
+}
+
+.route-scrub {
+  flex: 1;
+  min-width: 80px;
+  accent-color: #f97316;
+}
+
+.route-readout {
+  font-family: inherit;
+  font-size: 11px;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.route-attach {
+  display: none;
+}
+
+.route-full .route-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.wl-route-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.route-preview {
+  cursor: pointer;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.route-preview:hover {
+  transform: translateY(-1px);
 }

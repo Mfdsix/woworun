@@ -94,3 +94,30 @@ ALTER TABLE "dashboard_snapshots" ADD CONSTRAINT "dashboard_snapshots_user_id_fk
 -- AddForeignKey
 ALTER TABLE "manual_activities" ADD CONSTRAINT "manual_activities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+
+-- CreateTable
+CREATE TABLE IF NOT EXISTS "activity_routes" (
+    "id" UUID NOT NULL,
+    "activity_id" UUID NOT NULL,
+    "points" JSONB NOT NULL,
+    "point_count" INTEGER NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "activity_routes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "activity_routes_activity_id_key" ON "activity_routes"("activity_id");
+
+-- AddForeignKey
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'activity_routes_activity_id_fkey'
+    ) THEN
+        ALTER TABLE "activity_routes"
+            ADD CONSTRAINT "activity_routes_activity_id_fkey"
+            FOREIGN KEY ("activity_id") REFERENCES "manual_activities"("id")
+            ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;

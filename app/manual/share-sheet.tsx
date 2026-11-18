@@ -5,11 +5,13 @@ import {
   clampRange,
   coverFit,
   drawShareImage,
+  routeRect,
   shareCanvasSize,
   shareFileName,
   stickerRect,
   type ShareStickerLayer,
 } from "./share-draw";
+import type { RoutePoint } from "./route-map";
 import type { DashboardData, WalkSession } from "@/lib/strava/types";
 
 type Format = "4:5" | "9:16";
@@ -25,21 +27,28 @@ function todayInJakarta(): string {
 
 type PhotoLayer = { img: HTMLImageElement; url: string };
 type StickerLayer = ShareStickerLayer & { url: string };
+type RouteLayerState = { cx: number; cy: number; scale: number };
+type DragTarget = { layer: "route" | "sticker"; startX: number; startY: number; cx: number; cy: number };
+
+const ROUTE_DEFAULT: RouteLayerState = { cx: 0.5, cy: 0.26, scale: 0.46 };
 
 export function ShareSheet({
   data,
   selectedWalk,
   selectedPoints,
+  route,
   onClose,
 }: {
   data: DashboardData;
   selectedWalk: WalkSession | null;
   selectedPoints: number;
+  route: RoutePoint[] | null;
   onClose: () => void;
 }) {
   const [format, setFormat] = useState<Format>("4:5");
   const [photo, setPhoto] = useState<PhotoLayer | null>(null);
   const [sticker, setSticker] = useState<StickerLayer | null>(null);
+  const [routeLayer, setRouteLayer] = useState<RouteLayerState | null>(null);
   const [fontsReady, setFontsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -48,9 +57,10 @@ export function ShareSheet({
   const photoRearRef = useRef<HTMLInputElement>(null);
   const photoUserRef = useRef<HTMLInputElement>(null);
   const stickerRef = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ startX: number; startY: number; cx: number; cy: number } | null>(null);
+  const dragRef = useRef<DragTarget | null>(null);
 
   const { width, height } = shareCanvasSize(format);
+  const routeShown = Boolean(route && routeLayer);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,8 +117,21 @@ export function ShareSheet({
         ? { img: sticker.img, cx: sticker.cx, cy: sticker.cy, scale: sticker.scale }
         : null,
       fonts,
+      route: route && routeLayer ? { points: route, ...routeLayer } : null,
     });
-  }, [data, format, fontsReady, photo, selectedPoints, selectedWalk, sticker, width, height]);
+  }, [
+    data,
+    format,
+    fontsReady,
+    photo,
+    route,
+    routeLayer,
+    selectedPoints,
+    selectedWalk,
+    sticker,
+    width,
+    height,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -160,30 +183,55 @@ export function ShareSheet({
   }
 
   function onPointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (!sticker || !canvasRef.current) return;
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
     const rect = event.currentTarget.getBoundingClientRect();
-    const px =
-      (event.clientX - rect.left) * (canvasRef.current.width / rect.width);
-    const py =
-      (event.clientY - rect.top) * (canvasRef.current.height / rect.height);
-    const rectSticker = stickerRect(
-      {
-        canvasWidth: canvasRef.current.width,
-        canvasHeight: canvasRef.current.height,
-        scale: sticker.scale,
-        cx: sticker.cx,
-        cy: sticker.cy,
-      },
-      sticker.img,
-    );
+    const px = (event.clientX - rect.left) * (canvas.width / rect.width);
+    const py = (event.clientY - rect.top) * (canvas.height / rect.height);
 
-    if (
-      px >= rectSticker.x &&
-      px <= rectSticker.x + rectSticker.width &&
-      py >= rectSticker.y &&
-      py <= rectSticker.y + rectSticker.height
-    ) {
-      dragRef.current = { startX: px, startY: py, cx: sticker.cx, cy: sticker.cy };
+    let target: DragTarget | null = null;
+
+    if (route && routeLayer) {
+      const rectRoute = routeRect({
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        scale: routeLayer.scale,
+        cx: routeLayer.cx,
+        cy: routeLayer.cy,
+      });
+      if (
+        px >= rectRoute.x &&
+        px <= rectRoute.x + rectRoute.width &&
+        py >= rectRoute.y &&
+        py <= rectRoute.y + rectRoute.height
+      ) {
+        target = { layer: "route", startX: px, startY: py, cx: routeLayer.cx, cy: routeLayer.cy };
+      }
+    }
+
+    if (!target && sticker) {
+      const rectSticker = stickerRect(
+        {
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height,
+          scale: sticker.scale,
+          cx: sticker.cx,
+          cy: sticker.cy,
+        },
+        sticker.img,
+      );
+      if (
+        px >= rectSticker.x &&
+        px <= rectSticker.x + rectSticker.width &&
+        py >= rectSticker.y &&
+        py <= rectSticker.y + rectSticker.height
+      ) {
+        target = { layer: "sticker", startX: px, startY: py, cx: sticker.cx, cy: sticker.cy };
+      }
+    }
+
+    if (target) {
+      dragRef.current = target;
       event.currentTarget.setPointerCapture(event.pointerId);
     }
   }
@@ -191,21 +239,32 @@ export function ShareSheet({
   function onPointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
     const drag = dragRef.current;
     if (!drag || !canvasRef.current) return;
+    const canvas = canvasRef.current;
     const rect = event.currentTarget.getBoundingClientRect();
-    const dx =
-      (event.clientX - rect.left) * (canvasRef.current.width / rect.width) - drag.startX;
-    const dy =
-      (event.clientY - rect.top) * (canvasRef.current.height / rect.height) - drag.startY;
+    const dx = (event.clientX - rect.left) * (canvas.width / rect.width) - drag.startX;
+    const dy = (event.clientY - rect.top) * (canvas.height / rect.height) - drag.startY;
 
-    setSticker((current) =>
-      current
-        ? {
-            ...current,
-            cx: clampRange(drag.cx + dx / canvasRef.current!.width, 0.05, 0.95),
-            cy: clampRange(drag.cy + dy / canvasRef.current!.height, 0.05, 0.95),
-          }
-        : current,
-    );
+    if (drag.layer === "route") {
+      setRouteLayer((current) =>
+        current
+          ? {
+              ...current,
+              cx: clampRange(drag.cx + dx / canvas.width, 0.12, 0.88),
+              cy: clampRange(drag.cy + dy / canvas.height, 0.12, 0.88),
+            }
+          : current,
+      );
+    } else {
+      setSticker((current) =>
+        current
+          ? {
+              ...current,
+              cx: clampRange(drag.cx + dx / canvas.width, 0.05, 0.95),
+              cy: clampRange(drag.cy + dy / canvas.height, 0.05, 0.95),
+            }
+          : current,
+      );
+    }
   }
 
   function onPointerUp() {
@@ -338,6 +397,17 @@ export function ShareSheet({
               Remove sticker
             </button>
           )}
+          {route && selectedWalk && (
+            <button
+              className={`wl-btn ${routeShown ? "wl-btn-accent" : "wl-btn-ghost"}`}
+              type="button"
+              onClick={() =>
+                setRouteLayer((current) => (current ? null : { ...ROUTE_DEFAULT }))
+              }
+            >
+              {routeShown ? "Hide route" : "Show route"}
+            </button>
+          )}
         </div>
 
         {sticker && (
@@ -352,6 +422,25 @@ export function ShareSheet({
               value={sticker.scale}
               onChange={(event) =>
                 setSticker((current) =>
+                  current ? { ...current, scale: Number(event.target.value) } : current,
+                )
+              }
+            />
+          </div>
+        )}
+
+        {routeShown && (
+          <div className="share-row">
+            <span className="wl-kicker">Route size</span>
+            <input
+              className="share-slider"
+              type="range"
+              min={0.2}
+              max={0.75}
+              step={0.01}
+              value={routeLayer?.scale ?? ROUTE_DEFAULT.scale}
+              onChange={(event) =>
+                setRouteLayer((current) =>
                   current ? { ...current, scale: Number(event.target.value) } : current,
                 )
               }
@@ -377,8 +466,8 @@ export function ShareSheet({
         </div>
 
         <p className="share-hint">
-          Sticker and photo stay in this browser — nothing is uploaded. Drag the sticker on the
-          image to move it.
+          Sticker, photo, and route stay in this browser — nothing is uploaded. Drag the sticker
+          or the route panel on the image to move them.
         </p>
 
         <input

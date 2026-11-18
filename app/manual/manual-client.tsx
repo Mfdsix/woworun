@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  GpxParseError,
+  parseGpx,
+  simplifyTrack,
+  trackDistanceM,
+  withTimes,
+} from "@/lib/gpx";
 import { parseStored, STORAGE_KEY } from "@/lib/import/activity-store";
 import {
   formatDuration,
@@ -12,6 +19,7 @@ import {
 import { addDays, jakartaToday } from "@/lib/strava/dates";
 import type { DashboardData, WalkSession } from "@/lib/strava/types";
 import { CalendarCard } from "./calendar-card";
+import { RouteMap, type RoutePoint } from "./route-map";
 import {
   addMonths,
   filterWalksByRange,
@@ -131,6 +139,22 @@ function ShareIcon() {
   );
 }
 
+function RouteIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.66 8.7l-8.58 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="wl-stat">
@@ -225,7 +249,13 @@ export function ManualClient({
   });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const routeFileRef = useRef<HTMLInputElement>(null);
   const heroRef = useRef<HTMLElement | null>(null);
+  const [routes, setRoutes] = useState<Record<string, RoutePoint[] | null>>({});
+  const routesRef = useRef(routes);
+  routesRef.current = routes;
+  const [routeBusy, setRouteBusy] = useState(false);
+  const [routeFull, setRouteFull] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -319,8 +349,96 @@ export function ManualClient({
     };
   }, [modal, tab]);
 
-  function openAdd(options?: { tab?: "quick" | "paste"; date?: string }) {
-    const date = options?.date;
+  async function fetchRoute(activityId: string): Promise<RoutePoint[] | null> {
+    const cached = routesRef.current[activityId];
+    if (cached !== undefined) return cached;
+
+    try {
+      const response = await fetch(`/api/manual-activities/${activityId}/route`);
+      if (response.status === 404) {
+        setRoutes((current) => ({ ...current, [activityId]: null }));
+        return null;
+      }
+      if (!response.ok) return null;
+      const payload = (await response.json()) as { points?: unknown };
+      const points = payload.points;
+      if (
+        !Array.isArray(points) ||
+        points.length < 2 ||
+        !Array.isArray(points[0]) ||
+        typeof points[0][0] !== "number"
+      ) {
+        setRoutes((current) => ({ ...current, [activityId]: null }));
+        return null;
+      }
+      const route = points as RoutePoint[];
+      setRoutes((current) => ({ ...current, [activityId]: route }));
+      return route;
+    } catch {
+      return null;
+    }
+  }
+
+  async function attachGpx(
+    activityId: string,
+    file: File,
+    fallbackSeconds: number,
+  ): Promise<void> {
+    if (routeBusy) return;
+    setRouteBusy(true);
+    try {
+      const parsed = parseGpx(await file.text());
+      const points = withTimes(simplifyTrack(parsed, 900, 3), Math.max(60, fallbackSeconds));
+      const distance = trackDistanceM(points);
+      if (distance < 50) {
+        setToast("The GPX track is too short to draw.");
+        return;
+      }
+
+      const response = await fetch(`/api/manual-activities/${activityId}/route`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ points }),
+      });
+      if (!response.ok) {
+        setToast("Could not save the route. Try again.");
+        return;
+      }
+      setRoutes((current) => ({ ...current, [activityId]: points }));
+      setToast("Route attached to this walk.");
+    } catch (error) {
+      if (error instanceof GpxParseError) {
+        setToast(error.message);
+        return;
+      }
+      setToast("Network error. Try again.");
+    } finally {
+      setRouteBusy(false);
+      if (routeFileRef.current) routeFileRef.current.value = "";
+    }
+  }
+
+  async function detachRoute(activityId: string): Promise<void> {
+    if (routeBusy) return;
+    setRouteBusy(true);
+    try {
+      const response = await fetch(`/api/manual-activities/${activityId}/route`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        setToast("Could not remove the route.");
+        return;
+      }
+      setRoutes((current) => ({ ...current, [activityId]: null }));
+      setToast("Route removed.");
+    } catch {
+      setToast("Network error. Try again.");
+    } finally {
+      setRouteBusy(false);
+    }
+  }
+
+  function openAdd(options?: { tab?: "quick" | "paste"; date?: string }) {    const date = options?.date;
     setTab(options?.tab ?? "quick");
     if (date) {
       setQuick((current) => ({ ...current, date }));
@@ -386,6 +504,13 @@ export function ManualClient({
   async function addPaste() {
     if (!text.trim()) {
       setError("Paste a few rows first.");
+      return;
+    }
+
+    if (/<\?xml|<gpx[\s>]|<trkpt|<TrainingCenterDatabase|<Trackpoint/i.test(text)) {
+      setError(
+        "This looks like a GPX/TCX file, not table rows. Open the walk detail and use Attach GPX route instead.",
+      );
       return;
     }
 
@@ -515,6 +640,14 @@ export function ManualClient({
   }, [walks, selectedDate]);
   const selectedPoints = selected ? (pointsByWalk[selected.id] ?? 0) : 0;
   const selectedDelta = selected ? selected.distanceM - avgWalk : 0;
+  const selectedRoute = selected ? (routes[selected.id] ?? null) : null;
+
+  useEffect(() => {
+    const id = selected?.id;
+    if (!id) return;
+    void fetchRoute(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
 
   return (
     <div className="wl-shell">
@@ -579,6 +712,28 @@ export function ManualClient({
                   </div>
                   <div className="wl-actions">
                     <button
+                      className={`wl-home${selectedRoute ? " is-active" : ""}`}
+                      type="button"
+                      aria-label="Attach GPX route"
+                      title="Attach GPX route"
+                      disabled={routeBusy}
+                      onClick={() => routeFileRef.current?.click()}
+                    >
+                      <RouteIcon />
+                    </button>
+                    <input
+                      ref={routeFileRef}
+                      className="share-file"
+                      type="file"
+                      accept=".gpx,application/gpx+xml,text/xml"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file && selected) {
+                          void attachGpx(selected.id, file, selected.movingTimeS);
+                        }
+                      }}
+                    />
+                    <button
                       className="wl-home"
                       type="button"
                       aria-label="Share image"
@@ -632,8 +787,43 @@ export function ManualClient({
                     </div>
                   </div>
 
+                  {selectedRoute && (
+                    <div className="wl-route-block">
+                      <div
+                        className="route-preview"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setRouteFull(true)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") setRouteFull(true);
+                        }}
+                      >
+                        <RouteMap points={selectedRoute} />
+                      </div>
+                      <div className="wl-actions">
+                        <button
+                          className="wl-btn wl-btn-accent"
+                          type="button"
+                          onClick={() => setRouteFull(true)}
+                        >
+                          Animate route
+                        </button>
+                        <button
+                          className="wl-btn wl-btn-ghost"
+                          type="button"
+                          disabled={routeBusy}
+                          onClick={() => selected && detachRoute(selected.id)}
+                        >
+                          Remove route
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <p className="wl-detail-hint">
-                    Selected from Recent · tap the home icon to return to {month.label}.
+                    {selectedRoute
+                      ? `Selected from Recent · tap the home icon to return to ${month.label}.`
+                      : "Tap the paperclip icon to attach a GPX route for this walk."}
                   </p>
                 </div>
               </>
@@ -793,8 +983,35 @@ export function ManualClient({
           data={data}
           selectedWalk={selected}
           selectedPoints={selectedPoints}
+          route={selectedRoute}
           onClose={() => setShareOpen(false)}
         />
+      )}
+
+      {routeFull && selected && selectedRoute && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setRouteFull(false);
+          }}
+        >
+          <div className="modal wl-modal route-full" role="dialog" aria-modal="true">
+            <div className="modal-head">
+              <div>
+                <p className="wl-kicker">Route</p>
+                <h2 className="heading">{selected.name}</h2>
+              </div>
+              <button
+                className="wl-btn wl-btn-ghost"
+                type="button"
+                onClick={() => setRouteFull(false)}
+              >
+                Close
+              </button>
+            </div>
+            <RouteMap points={selectedRoute} animated />
+          </div>
+        </div>
       )}
 
       {modal === "add" && (
