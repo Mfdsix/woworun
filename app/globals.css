@@ -4112,3 +4112,67 @@ input.pin-slot.is-filled {
   justify-content: center;
   flex-wrap: wrap;
 }
+
+/* ---------- Tab-first: bottom bar on desktop, inline explorer ---------- */
+
+@media (min-width: 600px) {
+  .wl-shell {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-sheet {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .mobile-bar {
+    padding: 11px 20px;
+  }
+}
+
+/* Inline route explorer (desktop right column) */
+.wl-side-explorer {
+  height: calc(100dvh - 128px);
+  min-height: 480px;
+}
+
+.map-dialog.is-inline {
+  height: 100%;
+  max-height: none;
+  border-radius: 16px;
+}
+
+.map-dialog.is-inline .map-viewport {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+@media (min-width: 600px) {
+  .mobile-calendar {
+    padding: 40px 24px calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-calendar-body {
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .mobile-overlay-head {
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Last 7 days chart */
+.wl-bar.is-empty {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: transparent;
+}
+
+.wl-bar-date.is-today {
+  color: var(--wl-accent);
+  font-weight: 600;
+}

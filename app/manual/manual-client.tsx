@@ -22,7 +22,7 @@ import { CalendarCard } from "./calendar-card";
 import { RoutePreview, RouteExplorer, type RoutePoint } from "./route-map";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { HistoryList, type HistorySort } from "./history-list";
-import { MobileNav } from "./mobile-nav";
+import { BottomNav } from "./bottom-nav";
 import {
   addMonths,
   filterWalksByRange,
@@ -88,24 +88,6 @@ function skippedLabel(result: AddResult): string {
     .join(" · ");
 }
 
-function BrandMark() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="13" cy="4" r="1.5" fill="currentColor" />
-      <path d="M7 21l3-6 2.5 2 3.5-5" />
-      <path d="M6 12l3-3 4 1 3 3" />
-    </svg>
-  );
-}
-
 function HomeIcon() {
   return (
     <svg
@@ -169,6 +151,74 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
 
 function paceSecPerKm(walk: WalkSession): number {
   return walk.movingTimeS / (walk.distanceM / 1000);
+}
+
+function Last7Chart({ walks }: { walks: WalkSession[] }) {
+  const today = jakartaToday();
+  const days = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const date = addDays(today, -i);
+    const dayWalks = walks.filter((walk) => walk.startLocal.slice(0, 10) === date);
+    const meters = dayWalks.reduce((sum, walk) => sum + walk.distanceM, 0);
+    const weekday = new Date(
+      Number(date.slice(0, 4)),
+      Number(date.slice(5, 7)) - 1,
+      Number(date.slice(8, 10)),
+    ).getDay();
+    days.push({
+      date,
+      meters,
+      label: "SMTWTFS"[weekday],
+      isToday: i === 0,
+    });
+  }
+
+  const max = days.reduce((top, day) => Math.max(top, day.meters), 0) || 1;
+  const walked = days.filter((day) => day.meters > 0);
+  const avg = walked.length
+    ? walked.reduce((sum, day) => sum + day.meters, 0) / walked.length
+    : 0;
+  const avgPct = Math.min(82, Math.max(12, Math.round((avg / max) * 76)));
+
+  return (
+    <div className="wl-chart">
+      <div className="wl-chart-head">
+        <span className="wl-kicker">Last 7 days</span>
+        <span className="wl-chart-avg">
+          {walked.length}/7 active{avg > 0 ? ` · avg ${formatKm(avg)} km` : ""}
+        </span>
+      </div>
+      <div className="wl-chart-body">
+        {walked.length === 0 ? (
+          <p className="wl-chart-empty">No walks in the last 7 days.</p>
+        ) : (
+          <>
+            <div className="wl-avg-line" style={{ bottom: `${avgPct}%` }} />
+            <div className="wl-bars" style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
+              {days.map((day) => {
+                const height = day.meters > 0 ? Math.max(10, Math.round((day.meters / max) * 80)) : 4;
+                const latest = day.meters > 0;
+                return (
+                  <div className="wl-bar-col" key={day.date}>
+                    <span className={`wl-bar-value${latest ? " is-latest" : ""}`}>
+                      {day.meters > 0 ? formatKm(day.meters) : ""}
+                    </span>
+                    <div className="wl-bar-track">
+                      <div
+                        className={`wl-bar${latest ? " is-latest" : ""}${day.meters === 0 ? " is-empty" : ""}`}
+                        style={{ height: `${height}%` }}
+                      />
+                    </div>
+                    <span className={`wl-bar-date${day.isToday ? " is-today" : ""}`}>{day.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function ManualClient({
@@ -685,40 +735,13 @@ export function ManualClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
 
+  // The inline map lives in the right column — close it when the day changes.
+  useEffect(() => {
+    setExplorerOpen(false);
+  }, [selectedDate]);
+
   return (
     <div className="wl-shell">
-      {!isMobile && (
-      <header className="wl-topbar">
-        <div className="wl-brand">
-          <span className="wl-mark">
-            <BrandMark />
-          </span>
-          <div className="wl-title">
-            <span className="wl-kicker">Walk Log</span>
-            <h1 className="wl-heading">Local activities</h1>
-          </div>
-        </div>
-
-        <div className="wl-actions">
-          <span className="wl-summary">
-            {walkCount} walks · {points} pts
-          </span>
-          <span className="wl-synced">
-            <span className="wl-dot" />
-            PIN synced
-          </span>
-          <button className="wl-btn wl-btn-accent" type="button" onClick={() => openAdd({ tab: "quick" })}>
-            <span aria-hidden="true">+</span> Add Walk
-          </button>
-          <form action="/api/auth/logout" method="post">
-            <button className="wl-btn wl-btn-ghost" type="submit">
-              Lock
-            </button>
-          </form>
-        </div>
-      </header>
-      )}
-
       {!data || !month ? (
         <section className="wl-empty">
           <span className="wl-kicker">No activities yet</span>
@@ -977,6 +1000,8 @@ export function ManualClient({
                   </div>
                 </div>
 
+                <Last7Chart walks={walks} />
+
                 <p className="wl-detail-hint">
                   Pick a day in the calendar or a row in history to see its detail.
                 </p>
@@ -984,7 +1009,16 @@ export function ManualClient({
             )}
           </section>
 
-          {!isMobile && (
+          {!isMobile && explorerOpen && selected && selectedRoute ? (
+            <div className="wl-side wl-side-explorer">
+              <RouteExplorer
+                variant="inline"
+                points={selectedRoute}
+                walk={selected}
+                onClose={() => setExplorerOpen(false)}
+              />
+            </div>
+          ) : !isMobile ? (
           <div className="wl-side">
             <CalendarCard
               walks={walks}
@@ -1014,55 +1048,37 @@ export function ManualClient({
               />
             </section>
           </div>
-          )}
+          ) : null}
         </main>
       )}
 
-      {!isMobile && (
-      <footer className="wl-footer">
-        <div className="wl-footer-left">
-          <span>Manual</span>
-          <span className="wl-sep">·</span>
-          <span className="wl-synced-text">PIN synced</span>
-          <span className="wl-sep">·</span>
-          <a href="/strava">Strava</a>
-        </div>
-        <div className="wl-footer-right">
-          <span>{walkCount} walks total</span>
-          <span className="wl-sep">·</span>
-          <button className="wl-link" type="button" onClick={() => setModal("clear")}>
-            Clear all
-          </button>
-        </div>
-      </footer>
-      )}
-
-      {isMobile && (
-        <MobileNav
-          open={menuOpen}
-          walkCount={walkCount}
-          points={points}
-          onToggle={() => setMenuOpen((current) => !current)}
-          onHome={() => {
-            setMenuOpen(false);
-            setSelectedDate(null);
-          }}
-          onCalendar={() => {
-            setMenuOpen(false);
-            setOverlayHistory(false);
-            setCalendarOpen(true);
-          }}
-          onAdd={() => {
-            setMenuOpen(false);
-            openAdd({ tab: "quick" });
-          }}
-          onClear={() => {
-            setMenuOpen(false);
-            setModal("clear");
-          }}
-          onClose={() => setMenuOpen(false)}
-        />
-      )}
+      <BottomNav
+        open={menuOpen}
+        walkCount={walkCount}
+        points={points}
+        compact={!isMobile}
+        onToggle={() => setMenuOpen((current) => !current)}
+        onHome={() => {
+          setMenuOpen(false);
+          setExplorerOpen(false);
+          setSelectedDate(null);
+        }}
+        onCalendar={() => {
+          setMenuOpen(false);
+          setExplorerOpen(false);
+          setOverlayHistory(false);
+          setCalendarOpen(true);
+        }}
+        onAdd={() => {
+          setMenuOpen(false);
+          openAdd({ tab: "quick" });
+        }}
+        onClear={() => {
+          setMenuOpen(false);
+          setModal("clear");
+        }}
+        onClose={() => setMenuOpen(false)}
+      />
 
       {isMobile && calendarOpen && (
         <div className="mobile-calendar">
