@@ -82,6 +82,11 @@ Open <http://localhost:3000>. Enter any 6-character PIN, confirm, then connect S
 
 Vercel + Neon (or any Postgres). Add all env vars from `.env.example`, set `APP_URL` to the production origin, and update the Strava callback domain to match.
 
+Self-hosted production (VPS + Docker + GitHub Actions) is set up separately:
+push to `main` runs verify, then SSHes into the VPS and runs
+`scripts/deploy.sh`, which rebuilds the stack and gates on
+`GET /api/health`. Full runbook: **`docs/DEPLOY.md`**.
+
 ## PWA
 
 - Install via the browser's **Add to Home Screen**. The manifest is `/manifest.webmanifest`; icons live in `public/icons/` plus `public/apple-touch-icon.png`.
@@ -96,6 +101,9 @@ Vercel + Neon (or any Postgres). Add all env vars from `.env.example`, set `APP_
 ```bash
 docker compose up -d --build
 ```
+
+Di VPS gunakan `bash scripts/deploy.sh` (pull + build + health gate); lihat
+`docs/DEPLOY.md` untuk setup, secrets, dan rollback.
 
 Open <http://localhost:6601>. The container serves the app on internal port 3000, published as **6601**.
 
