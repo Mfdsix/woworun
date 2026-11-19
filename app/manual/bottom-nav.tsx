@@ -1,7 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
-
 function HomeIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -55,10 +53,11 @@ function MenuIcon() {
   );
 }
 
-export function MobileNav({
+export function BottomNav({
   open,
   walkCount,
   points,
+  compact = false,
   onToggle,
   onHome,
   onCalendar,
@@ -69,6 +68,8 @@ export function MobileNav({
   open: boolean;
   walkCount: number;
   points: number;
+  /** desktop sheet: only Add new + Logout (calendar & home live on-screen) */
+  compact?: boolean;
   onToggle: () => void;
   onHome: () => void;
   onCalendar: () => void;
@@ -105,20 +106,24 @@ export function MobileNav({
               </span>
             </div>
 
-            <button className="mobile-menu-item" type="button" onClick={onHome}>
-              <HomeIcon />
-              <span>
-                Home
-                <small>Month overview</small>
-              </span>
-            </button>
-            <button className="mobile-menu-item" type="button" onClick={onCalendar}>
-              <CalendarIcon />
-              <span>
-                Calendar
-                <small>Pick a day</small>
-              </span>
-            </button>
+            {!compact && (
+              <>
+                <button className="mobile-menu-item" type="button" onClick={onHome}>
+                  <HomeIcon />
+                  <span>
+                    Home
+                    <small>Month overview</small>
+                  </span>
+                </button>
+                <button className="mobile-menu-item" type="button" onClick={onCalendar}>
+                  <CalendarIcon />
+                  <span>
+                    Calendar
+                    <small>Pick a day</small>
+                  </span>
+                </button>
+              </>
+            )}
             <button className="mobile-menu-item" type="button" onClick={onAdd}>
               <PlusIcon />
               <span>
@@ -136,44 +141,19 @@ export function MobileNav({
               </button>
             </form>
 
-            <div className="mobile-sheet-divider" />
-            <button className="mobile-menu-item is-danger" type="button" onClick={onClear}>
-              <TrashIcon />
-              <span>
-                Clear all
-                <small>Delete every walk</small>
-              </span>
-            </button>
+            {!compact && <div className="mobile-sheet-divider" />}
+            {!compact && (
+              <button className="mobile-menu-item is-danger" type="button" onClick={onClear}>
+                <TrashIcon />
+                <span>
+                  Clear all
+                  <small>Delete every walk</small>
+                </span>
+              </button>
+            )}
           </div>
         </div>
       )}
     </>
-  );
-}
-
-export function MobileSheetHeader({
-  kicker,
-  onBack,
-  children,
-}: {
-  kicker: string;
-  onBack: () => void;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="mobile-overlay-head">
-      <span className="wl-kicker">{kicker}</span>
-      <button
-        className="wl-home"
-        type="button"
-        aria-label="Close"
-        onClick={onBack}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-          <path d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-      {children}
-    </div>
   );
 }

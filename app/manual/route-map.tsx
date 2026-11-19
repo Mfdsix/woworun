@@ -159,10 +159,13 @@ export function RouteExplorer({
   points,
   walk,
   onClose,
+  variant = "overlay",
 }: {
   points: RoutePoint[];
   walk: WalkSession;
   onClose: () => void;
+  /** overlay = fixed full-screen (mobile) · inline = embedded panel (desktop right column) */
+  variant?: "overlay" | "inline";
 }) {
   const projected = useMemo(() => projectPoints(points), [points]);
   const cum = useMemo(() => cumulativeDistancesM(points), [points]);
@@ -402,15 +405,23 @@ export function RouteExplorer({
 
   return (
     <div
-      className="map-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          stopPlayback();
-          onClose();
-        }
-      }}
+      className={variant === "inline" ? "map-inline" : "map-backdrop"}
+      onMouseDown={
+        variant === "inline"
+          ? undefined
+          : (event) => {
+              if (event.target === event.currentTarget) {
+                stopPlayback();
+                onClose();
+              }
+            }
+      }
     >
-      <div className="map-dialog" role="dialog" aria-modal="true">
+      <div
+        className={`map-dialog${variant === "inline" ? " is-inline" : ""}`}
+        role="dialog"
+        aria-modal={variant === "overlay" ? true : undefined}
+      >
         <div className="map-head">
           <div className="map-head-left">
             <div className="map-title-block">
@@ -466,7 +477,7 @@ export function RouteExplorer({
               Grid: {gridOn ? "On" : "Off"}
             </button>
             <button
-              className="wl-btn wl-btn-ghost"
+              className={variant === "inline" ? "wl-btn wl-btn-accent" : "wl-btn wl-btn-ghost"}
               type="button"
               aria-label="Close route explorer"
               onClick={() => {
@@ -474,7 +485,7 @@ export function RouteExplorer({
                 onClose();
               }}
             >
-              Close
+              {variant === "inline" ? "Back to calendar" : "Close"}
             </button>
           </div>
         </div>
