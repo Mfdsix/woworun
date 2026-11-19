@@ -153,13 +153,20 @@ function paceSecPerKm(walk: WalkSession): number {
   return walk.movingTimeS / (walk.distanceM / 1000);
 }
 
-function Last7Chart({ walks }: { walks: WalkSession[] }) {
+function Last7Chart({
+  walks,
+  onSelectDate,
+}: {
+  walks: WalkSession[];
+  onSelectDate: (date: string) => void;
+}) {
   const today = jakartaToday();
   const days = [];
   for (let i = 6; i >= 0; i -= 1) {
     const date = addDays(today, -i);
     const dayWalks = walks.filter((walk) => walk.startLocal.slice(0, 10) === date);
     const meters = dayWalks.reduce((sum, walk) => sum + walk.distanceM, 0);
+    const seconds = dayWalks.reduce((sum, walk) => sum + walk.movingTimeS, 0);
     const weekday = new Date(
       Number(date.slice(0, 4)),
       Number(date.slice(5, 7)) - 1,
@@ -168,55 +175,95 @@ function Last7Chart({ walks }: { walks: WalkSession[] }) {
     days.push({
       date,
       meters,
+      seconds,
       label: "SMTWTFS"[weekday],
       isToday: i === 0,
     });
   }
 
-  const max = days.reduce((top, day) => Math.max(top, day.meters), 0) || 1;
   const walked = days.filter((day) => day.meters > 0);
   const avg = walked.length
     ? walked.reduce((sum, day) => sum + day.meters, 0) / walked.length
     : 0;
-  const avgPct = Math.min(82, Math.max(12, Math.round((avg / max) * 76)));
+  // Calibrated scale so sparse weeks still read well.
+  const maxKm = Math.max(8.5, (avg / 1000) * 1.2);
+  const SLOT = 88;
+  const avgPx = Math.round((avg / 1000 / maxKm) * SLOT);
+  const avgBottom = 12 + avgPx;
 
   return (
-    <div className="wl-chart">
-      <div className="wl-chart-head">
-        <span className="wl-kicker">Last 7 days</span>
-        <span className="wl-chart-avg">
-          {walked.length}/7 active{avg > 0 ? ` · avg ${formatKm(avg)} km` : ""}
+    <div className="l7">
+      <div className="l7-head">
+        <div className="l7-head-left">
+          <span className="l7-title">Last 7 days</span>
+          <span className="l7-range">
+            {formatShortDate(days[0].date)} – {formatShortDate(days[6].date)}
+          </span>
+        </div>
+        <span className="l7-badge">
+          {walked.length}/7 active · avg {formatKm(avg)} km
         </span>
       </div>
-      <div className="wl-chart-body">
-        {walked.length === 0 ? (
-          <p className="wl-chart-empty">No walks in the last 7 days.</p>
-        ) : (
-          <>
-            <div className="wl-avg-line" style={{ bottom: `${avgPct}%` }} />
-            <div className="wl-bars" style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
-              {days.map((day) => {
-                const height = day.meters > 0 ? Math.max(10, Math.round((day.meters / max) * 80)) : 4;
-                const latest = day.meters > 0;
-                return (
-                  <div className="wl-bar-col" key={day.date}>
-                    <span className={`wl-bar-value${latest ? " is-latest" : ""}`}>
-                      {day.meters > 0 ? formatKm(day.meters) : ""}
-                    </span>
-                    <div className="wl-bar-track">
-                      <div
-                        className={`wl-bar${latest ? " is-latest" : ""}${day.meters === 0 ? " is-empty" : ""}`}
-                        style={{ height: `${height}%` }}
-                      />
-                    </div>
-                    <span className={`wl-bar-date${day.isToday ? " is-today" : ""}`}>{day.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </>
+
+      <div className="l7-plot">
+        {avg > 0 && (
+          <div className="l7-avg-line" style={{ bottom: `${avgBottom}px` }}>
+            <span className="l7-avg-tag">avg {formatKm(avg)}</span>
+          </div>
         )}
+        <div className="l7-grid">
+          {days.map((day, index) => {
+            const km = day.meters / 1000;
+            const height = day.meters > 0 ? Math.max(18, Math.round((km / maxKm) * SLOT)) : 0;
+            const pace = day.meters > 0
+              ? formatPace(day.seconds / (day.meters / 1000))
+              : "";
+            return (
+              <div className="l7-col" key={day.date}>
+                <div className="l7-slot">
+                  {day.meters > 0 ? (
+                    <>
+                      <span className="l7-val">{formatKm(day.meters)}</span>
+                      <button
+                        type="button"
+                        className="l7-bar"
+                        style={{ height: `${height}px`, animationDelay: `${index * 45}ms` }}
+                        onClick={() => onSelectDate(day.date)}
+                        aria-label={`${formatShortDate(day.date)} · ${formatKm(day.meters)} km`}
+                      >
+                        <span className="l7-tip">
+                          <b>
+                            {formatShortDate(day.date)} · {formatKm(day.meters)} km
+                          </b>
+                          <small>
+                            {formatDuration(day.seconds)} · {pace}/km
+                          </small>
+                        </span>
+                      </button>
+                    </>
+                  ) : (
+                    <span
+                      className="l7-rest"
+                      title={`${formatShortDate(day.date)} · no walk`}
+                    />
+                  )}
+                </div>
+                <div className="l7-day">
+                  {day.isToday ? (
+                    <span className="is-today" title={`Today · ${formatShortDate(day.date)}`}>
+                      {day.label}
+                    </span>
+                  ) : (
+                    <span className={day.meters > 0 ? "is-active" : "is-rest"}>{day.label}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      <p className="l7-hint">Click an active bar to inspect that day's walk.</p>
     </div>
   );
 }
@@ -1000,7 +1047,10 @@ export function ManualClient({
                   </div>
                 </div>
 
-                <Last7Chart walks={walks} />
+                <Last7Chart
+                  walks={walks}
+                  onSelectDate={(date) => setSelectedDate(date)}
+                />
 
                 <p className="wl-detail-hint">
                   Pick a day in the calendar or a row in history to see its detail.
