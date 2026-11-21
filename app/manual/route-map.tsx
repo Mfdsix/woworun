@@ -76,6 +76,30 @@ function lerpColor(from: number[], to: number[], t: number): string {
   return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
 }
 
+/// Deterministic PRNG so street scenery is stable between renders.
+function mulberry32(seed: number): () => number {
+  return function next() {
+    let t = seed += 0x6d2b79f5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type StreetProp = {
+  kind: "building" | "tree";
+  /** world position in projected-unit space */
+  x: number;
+  y: number;
+  /** distance along the route in the same units */
+  f: number;
+  /** height in camera-height units */
+  h: number;
+  /** footprint width in units */
+  w: number;
+  tint: number;
+};
+
 function pathTo(points: { x: number; y: number }[], from: number, to: number): string {
   let d = "";
   for (let i = from; i <= to; i += 1) {
@@ -151,7 +175,7 @@ type KmSegment = {
   color: string;
 };
 
-const SPEEDS = [0.5, 1, 2, 4] as const;
+const SPEEDS = [0.2, 0.5, 1, 2, 4] as const;
 const ZOOM_MIN = 0.75;
 const ZOOM_MAX = 2.6;
 
@@ -159,10 +183,13 @@ export function RouteExplorer({
   points,
   walk,
   onClose,
+  variant = "overlay",
 }: {
   points: RoutePoint[];
   walk: WalkSession;
   onClose: () => void;
+  /** overlay = fixed full-screen (mobile) · inline = embedded panel (desktop right column) */
+  variant?: "overlay" | "inline";
 }) {
   const projected = useMemo(() => projectPoints(points), [points]);
   const cum = useMemo(() => cumulativeDistancesM(points), [points]);
@@ -219,12 +246,15 @@ export function RouteExplorer({
   const [pov, setPov] = useState(false);
   const [headingDeg, setHeadingDeg] = useState(0);
   const headingRef = useRef(0);
+  const [lookOffset, setLookOffset] = useState(0);
+  const lookDrag = useRef<{ startX: number; startOffset: number } | null>(null);
+  const totalHeading = headingDeg + lookOffset;
   const [heatmap, setHeatmap] = useState(false);
   const [gridOn, setGridOn] = useState(true);
   const [activeKm, setActiveKm] = useState<number | null>(null);
   const [scrub, setScrub] = useState(0); // 0..100 percent of distance
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(0.5);
+  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(0.2);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dragRef = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -236,10 +266,11 @@ export function RouteExplorer({
   const overallPace = totalSeconds / (totalMeters / 1000);
   const activeSeg = activeKm ? segments.find((s) => s.km === activeKm) : null;
 
-  // First-person camera: heading = direction of travel around the puck,
-  // sampled ±60m so turns feel like sweeping rather than snapping.
-  const lookBehind = pointAtDistance(cum, points, projected, Math.max(0, scrubMeters - 60));
-  const lookAhead = pointAtDistance(cum, points, projected, Math.min(totalMeters, scrubMeters + 60));
+  // First-person camera: heading = direction of travel around the puck.
+  // Asymmetric window (a little behind, mostly ahead) so the path ahead
+  // stays centered on screen; easing smooths the sweep through turns.
+  const lookBehind = pointAtDistance(cum, points, projected, Math.max(0, scrubMeters - 8));
+  const lookAhead = pointAtDistance(cum, points, projected, Math.min(totalMeters, scrubMeters + 45));
   const headingVx = lookAhead.x - lookBehind.x;
   const headingVy = lookAhead.y - lookBehind.y;
   const headingTarget =
@@ -256,11 +287,11 @@ export function RouteExplorer({
       let diff = headingTarget - current;
       while (diff > 180) diff -= 360;
       while (diff < -180) diff += 360;
-      if (Math.abs(diff) < 0.25) {
+      if (Math.abs(diff) < 0.2) {
         headingRef.current = headingTarget;
         return;
       }
-      headingRef.current = current + diff * 0.12;
+      headingRef.current = current + diff * 0.22;
       setHeadingDeg(headingRef.current);
       raf = window.requestAnimationFrame(ease);
     };
@@ -333,11 +364,84 @@ export function RouteExplorer({
   const HORIZON = 300;
   const FADE = 420;
 
+  // Procedural street scenery (buildings + trees) along the route, in
+  // projected-unit space, for the 360 walking view.
+  const streetProps = useMemo<StreetProp[]>(() => {
+    let pathUnits = 0;
+    for (let i = 1; i < projected.length; i += 1) {
+      pathUnits += Math.hypot(
+        projected[i].x - projected[i - 1].x,
+        projected[i].y - projected[i - 1].y,
+      );
+    }
+    if (pathUnits < 10 || totalMeters <= 0) return [];
+
+    const unitPerM = pathUnits / totalMeters;
+    const totalUnits = totalMeters * unitPerM;
+    const rand = mulberry32(Math.max(1, Math.round(totalMeters)));
+    const props: StreetProp[] = [];
+
+    // Corridor clearances (units): props must keep this distance from the
+    // entire route polyline, so the walking camera never clips through one.
+    const CLEAR_BUILDING = 8;
+    const CLEAR_TREE = 6.5;
+    const MIN_GAP = 3.5;
+
+    const lastD = { 1: -99, [-1]: -99 } as Record<number, number>;
+    let d = 5 + rand() * 4;
+    while (d < totalUnits - 5) {
+      const base = pointAtDistance(cum, points, projected, d / unitPerM);
+      const ahead = pointAtDistance(cum, points, projected, (d + 5) / unitPerM);
+      const dx = ahead.x - base.x;
+      const dy = ahead.y - base.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const px = -dy / len;
+      const py = dx / len;
+      const side = rand() < 0.5 ? 1 : -1;
+      // Same-side spacing: no clumps the camera has to squeeze between.
+      if (d - lastD[side] < MIN_GAP) {
+        d += 1.5 + rand() * 2;
+        continue;
+      }
+
+      const isBuilding = rand() < 0.45;
+      const clear = isBuilding ? CLEAR_BUILDING : CLEAR_TREE;
+      const lateral = isBuilding ? 9 + rand() * 9 : 6 + rand() * 4.5;
+      const x = base.x + px * lateral * side;
+      const y = base.y + py * lateral * side;
+
+      // Distance to the nearest route point anywhere — reject props that
+      // would sit on the path further along a curve.
+      let minDist = Infinity;
+      for (let i = 0; i < projected.length; i += 1) {
+        const dist = Math.hypot(projected[i].x - x, projected[i].y - y);
+        if (dist < minDist) minDist = dist;
+      }
+      if (minDist < clear) {
+        d += 1.5 + rand() * 2;
+        continue;
+      }
+
+      props.push({
+        kind: isBuilding ? "building" : "tree",
+        x,
+        y,
+        f: d,
+        h: isBuilding ? 5 + rand() * 11 : 0.9 + rand() * 1.6,
+        w: isBuilding ? 5 + rand() * 9 : 0.7 + rand() * 0.8,
+        tint: rand(),
+      });
+      lastD[side] = d;
+      d += 4.5 + rand() * 4.5;
+    }
+    return props;
+  }, [cum, points, projected, totalMeters]);
+
   const ground = useMemo(() => {
     if (!pov) return null;
     const camX = puck.x;
     const camY = puck.y;
-    const hr = (headingDeg * Math.PI) / 180;
+    const hr = (totalHeading * Math.PI) / 180;
     const cs = Math.cos(hr);
     const sn = Math.sin(hr);
 
@@ -397,20 +501,37 @@ export function RouteExplorer({
     const startP = proj360(projected[0].x, projected[0].y);
     const endP = proj360(projected[projected.length - 1].x, projected[projected.length - 1].y);
 
-    return { subpaths, rows, latLines, markers, startP, endP };
-  }, [pov, puck.x, puck.y, headingDeg, projected, segments]);
+    // Project scenery, far first (painter's algorithm).
+    const props3d = streetProps
+      .map((prop) => {
+        const p = proj360(prop.x, prop.y);
+        return p ? { prop, sx: p.sx, sy: p.sy, f: p.f } : null;
+      })
+      .filter((x): x is { prop: StreetProp; sx: number; sy: number; f: number } => x !== null)
+      .sort((a, b) => b.f - a.f);
+
+    return { subpaths, rows, latLines, markers, startP, endP, props3d };
+  }, [pov, puck.x, puck.y, totalHeading, projected, segments, streetProps]);
 
   return (
     <div
-      className="map-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          stopPlayback();
-          onClose();
-        }
-      }}
+      className={variant === "inline" ? "map-inline" : "map-backdrop"}
+      onMouseDown={
+        variant === "inline"
+          ? undefined
+          : (event) => {
+              if (event.target === event.currentTarget) {
+                stopPlayback();
+                onClose();
+              }
+            }
+      }
     >
-      <div className="map-dialog" role="dialog" aria-modal="true">
+      <div
+        className={`map-dialog${variant === "inline" ? " is-inline" : ""}`}
+        role="dialog"
+        aria-modal={variant === "overlay" ? true : undefined}
+      >
         <div className="map-head">
           <div className="map-head-left">
             <div className="map-title-block">
@@ -454,7 +575,11 @@ export function RouteExplorer({
             <button
               className={`wl-btn ${pov ? "wl-btn-accent" : "wl-btn-ghost"}`}
               type="button"
-              onClick={() => setPov((current) => !current)}
+              onClick={() => {
+                const next = !pov;
+                setPov(next);
+                if (!next) setLookOffset(0);
+              }}
             >
               {pov ? "360: On" : "360 view"}
             </button>
@@ -466,7 +591,7 @@ export function RouteExplorer({
               Grid: {gridOn ? "On" : "Off"}
             </button>
             <button
-              className="wl-btn wl-btn-ghost"
+              className={variant === "inline" ? "wl-btn wl-btn-accent" : "wl-btn wl-btn-ghost"}
               type="button"
               aria-label="Close route explorer"
               onClick={() => {
@@ -474,7 +599,7 @@ export function RouteExplorer({
                 onClose();
               }}
             >
-              Close
+              {variant === "inline" ? "Back to calendar" : "Close"}
             </button>
           </div>
         </div>
@@ -489,7 +614,13 @@ export function RouteExplorer({
             setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number((z + delta).toFixed(2)))));
           }}
           onPointerDown={(event) => {
-            if (pov || (event.target as HTMLElement).closest("button")) return;
+            if ((event.target as HTMLElement).closest("button")) return;
+            if (pov) {
+              // Free-look: drag rotates the camera heading.
+              lookDrag.current = { startX: event.clientX, startOffset: lookOffset };
+              event.currentTarget.setPointerCapture(event.pointerId);
+              return;
+            }
             dragRef.current = {
               px: event.clientX,
               py: event.clientY,
@@ -499,6 +630,16 @@ export function RouteExplorer({
             event.currentTarget.setPointerCapture(event.pointerId);
           }}
           onPointerMove={(event) => {
+            const look = lookDrag.current;
+            if (look) {
+              setLookOffset(
+                Math.max(
+                  -180,
+                  Math.min(180, look.startOffset + (event.clientX - look.startX) * 0.25),
+                ),
+              );
+              return;
+            }
             const drag = dragRef.current;
             if (!drag) return;
             setPan({
@@ -507,9 +648,11 @@ export function RouteExplorer({
             });
           }}
           onPointerUp={() => {
+            lookDrag.current = null;
             dragRef.current = null;
           }}
           onPointerCancel={() => {
+            lookDrag.current = null;
             dragRef.current = null;
           }}
         >
@@ -566,6 +709,76 @@ export function RouteExplorer({
                     opacity={Math.max(0.18, Math.min(1, 1.15 - sp.f / FADE))}
                   />
                 ))}
+
+                {ground.props3d.map(({ prop, sx, sy, f }, i) => {
+                  const scale = FOCAL / f;
+                  const groundY = HORIZON + CAM_H * scale;
+                  const alpha = Math.max(0.12, Math.min(0.85, 1.05 - f / (FADE * 1.9)));
+                  if (prop.kind === "building") {
+                    const halfW = (prop.w / 2) * scale;
+                    const topY = HORIZON + (CAM_H - prop.h) * scale;
+                    const face = 26 + Math.round(prop.tint * 14);
+                    return (
+                      <g key={`s${i}`} opacity={alpha}>
+                        <rect
+                          x={sx - halfW}
+                          y={topY}
+                          width={halfW * 2}
+                          height={Math.max(0, groundY - topY)}
+                          fill={`rgb(${face}, ${face}, ${face + 6})`}
+                          stroke="rgba(255,255,255,0.05)"
+                          strokeWidth={1}
+                        />
+                        <line
+                          x1={sx - halfW}
+                          y1={topY}
+                          x2={sx + halfW}
+                          y2={topY}
+                          stroke="rgba(255,255,255,0.15)"
+                          strokeWidth={1.5}
+                        />
+                        <line
+                          x1={sx - halfW}
+                          y1={topY + (groundY - topY) * 0.38}
+                          x2={sx + halfW}
+                          y2={topY + (groundY - topY) * 0.38}
+                          stroke="rgba(255,255,255,0.05)"
+                          strokeWidth={scale > 30 ? 2 : 1}
+                        />
+                        <line
+                          x1={sx - halfW}
+                          y1={topY + (groundY - topY) * 0.7}
+                          x2={sx + halfW}
+                          y2={topY + (groundY - topY) * 0.7}
+                          stroke="rgba(255,255,255,0.04)"
+                          strokeWidth={scale > 30 ? 2 : 1}
+                        />
+                      </g>
+                    );
+                  }
+                  const topY = HORIZON + (CAM_H - prop.h) * scale;
+                  const canopyR = Math.max(2.5, prop.w * scale * 0.9);
+                  const g = 42 + Math.round(prop.tint * 18);
+                  return (
+                    <g key={`s${i}`} opacity={alpha}>
+                      <line
+                        x1={sx}
+                        y1={groundY}
+                        x2={sx}
+                        y2={topY + canopyR * 0.55}
+                        stroke="#3d3226"
+                        strokeWidth={Math.max(1.5, scale * 0.07)}
+                        strokeLinecap="round"
+                      />
+                      <circle
+                        cx={sx}
+                        cy={topY}
+                        r={canopyR}
+                        fill={`rgb(${16 + Math.round(prop.tint * 10)}, ${g}, ${24 + Math.round(prop.tint * 8)})`}
+                      />
+                    </g>
+                  );
+                })}
 
                 {ground.startP && (
                   <circle
@@ -653,7 +866,7 @@ export function RouteExplorer({
                 <g
                   key={seg.km}
                   className="map-km-marker"
-                  transform={pov ? `rotate(${-headingDeg.toFixed(2)} ${seg.x} ${seg.y})` : undefined}
+                  transform={pov ? `rotate(${(-totalHeading).toFixed(2)} ${seg.x} ${seg.y})` : undefined}
                   onMouseEnter={() => setActiveKm(seg.km)}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -718,29 +931,36 @@ export function RouteExplorer({
             </div>
           </div>
 
-          <div className={`route-zoom map-zoom${pov ? " is-hidden" : ""}`}>
+          <div className="route-zoom map-zoom">
+            {!pov && (
+              <>
+                <button
+                  className="route-zoom-btn"
+                  type="button"
+                  aria-label="Zoom in"
+                  onClick={() => setZoom((z) => Math.min(ZOOM_MAX, Number((z + 0.25).toFixed(2))))}
+                >
+                  +
+                </button>
+                <button
+                  className="route-zoom-btn"
+                  type="button"
+                  aria-label="Zoom out"
+                  onClick={() => setZoom((z) => Math.max(ZOOM_MIN, Number((z - 0.25).toFixed(2))))}
+                >
+                  −
+                </button>
+              </>
+            )}
             <button
               className="route-zoom-btn"
               type="button"
-              aria-label="Zoom in"
-              disabled={pov}
-              onClick={() => setZoom((z) => Math.min(ZOOM_MAX, Number((z + 0.25).toFixed(2))))}
-            >
-              +
-            </button>
-            <button
-              className="route-zoom-btn"
-              type="button"
-              aria-label="Zoom out"
-              onClick={() => setZoom((z) => Math.max(ZOOM_MIN, Number((z - 0.25).toFixed(2))))}
-            >
-              −
-            </button>
-            <button
-              className="route-zoom-btn"
-              type="button"
-              aria-label="Reset pan and zoom"
+              aria-label={pov ? "Recenter view" : "Reset pan and zoom"}
               onClick={() => {
+                if (pov) {
+                  setLookOffset(0);
+                  return;
+                }
                 setZoom(1);
                 setPan({ x: 0, y: 0 });
               }}
@@ -766,7 +986,9 @@ export function RouteExplorer({
           </div>
 
           <div className="map-hint">
-            {pov ? "360 walking view · camera follows your path" : "Scroll to zoom · Drag to pan · Click km markers"}
+            {pov
+              ? "Drag to look around · Play to walk the route"
+              : "Scroll to zoom · Drag to pan · Click km markers"}
           </div>
         </div>
 
