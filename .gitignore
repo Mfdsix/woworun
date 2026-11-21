@@ -17,3 +17,6 @@ next-env.d.ts
 
 # Local activity imports (may contain personal IDs)
 data/
+
+# file override yang ditulis dashboard deployer
+deployer.override.yml
