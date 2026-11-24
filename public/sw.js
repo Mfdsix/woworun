@@ -2,7 +2,7 @@
  * Bump VERSION when the caching strategy changes; the old caches are removed
  * on activate. New versions wait for the in-app "Update available" prompt.
  */
-const VERSION = "v2";
+const VERSION = "v3";
 const STATIC_CACHE = `walklog-static-${VERSION}`;
 const PAGE_CACHE = `walklog-pages-${VERSION}`;
 const OFFLINE_URL = "/offline";
