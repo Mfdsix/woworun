@@ -195,10 +195,7 @@ function Last7Chart({
     <div className="l7">
       <div className="l7-head">
         <div className="l7-head-left">
-          <span className="l7-title">Last 7 days</span>
-          <span className="l7-range">
-            {formatShortDate(days[0].date)} – {formatShortDate(days[6].date)}
-          </span>
+          <span className="l7-title">Last 7 Days</span>
         </div>
         <span className="l7-badge">
           {walked.length}/7 active · avg {formatKm(avg)} km
@@ -474,26 +471,6 @@ export function ManualClient({
     } finally {
       setRouteBusy(false);
       if (routeFileRef.current) routeFileRef.current.value = "";
-    }
-  }
-
-  async function detachRoute(activityId: string): Promise<void> {
-    if (routeBusy) return;
-    setRouteBusy(true);
-    try {
-      const response = await fetch(`/api/manual-activities/${activityId}/route`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        setToast("Could not remove the route.");
-        return;
-      }
-      setRoutes((current) => ({ ...current, [activityId]: null }));
-      setToast("Route removed.");
-    } catch {
-      setToast("Network error. Try again.");
-    } finally {
-      setRouteBusy(false);
     }
   }
 
@@ -830,13 +807,7 @@ export function ManualClient({
               <>
                 <div className="wl-row">
                   <div className="wl-row-left">
-                    <span className="wl-kicker">Activity detail</span>
                     <span className="wl-badge">{formatShortDate(selected.startLocal)}</span>
-                    {isMobile && navWalks.length > 0 && (
-                      <span className="wl-nav-count">
-                        {navIndex + 1} / {navWalks.length}
-                      </span>
-                    )}
                   </div>
                   <div className="wl-actions">
                     <button
@@ -922,16 +893,6 @@ export function ManualClient({
                         points={selectedRoute}
                         onExpand={() => setExplorerOpen(true)}
                       />
-                      <div className="wl-actions">
-                        <button
-                          className="wl-btn wl-btn-ghost"
-                          type="button"
-                          disabled={routeBusy}
-                          onClick={() => selected && detachRoute(selected.id)}
-                        >
-                          Remove route
-                        </button>
-                      </div>
                     </div>
                   )}
 
@@ -998,8 +959,7 @@ export function ManualClient({
               <div className="wl-detail-main">
                 <div className="wl-row">
                   <div className="wl-row-left">
-                    <span className="wl-kicker">{month.label}</span>
-                    <span className="wl-badge">Active month</span>
+                    <span className="wl-month-name">{month.label}</span>
                   </div>
                   <div className="wl-actions">
                     <button
@@ -1010,9 +970,6 @@ export function ManualClient({
                     >
                       <ShareIcon />
                     </button>
-                    <span className="wl-summary wl-summary-compact">
-                      {walkCount} walks · {points} pts
-                    </span>
                   </div>
                 </div>
 
